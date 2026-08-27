@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 
 function App() {
   const [apiStatus, setApiStatus] = useState('Checking...')
@@ -87,9 +87,18 @@ function App() {
     const discovery = attrs.discovery
     const web = attrs.web_intelligence
 
-    const emails = entities.filter(e => e.type === 'email').map(e => e.label)
-    const phones = entities.filter(e => e.type === 'phone').map(e => e.label)
-    const socials = entities.filter(e => e.type === 'social_profile').map(e => e.label)
+    const emails = [...new Set(entities.filter(e => e.type === 'email_address').map(e => e.label))]
+    const phones = [...new Set(entities.filter(e => e.type === 'phone_number').map(e => e.label))]
+    const socials = [...new Set(entities.filter(e => e.type === 'social_profile').map(e => e.label))]
+
+    const newsEntities = [...entities]
+      .filter(e => e.type === 'news_article')
+      .sort((a, b) => {
+        const dateA = a.attributes?.published_at ? new Date(a.attributes.published_at).getTime() : 0;
+        const dateB = b.attributes?.published_at ? new Date(b.attributes.published_at).getTime() : 0;
+        return dateB - dateA;
+      })
+      .slice(0, 10);
 
     return (
       <div className="space-y-6">
@@ -233,6 +242,59 @@ function App() {
             </div>
           </section>
         </div>
+
+        {/* Recent Company News */}
+        <section className="bg-slate-800 rounded-xl p-6 border border-slate-700 shadow-lg">
+          <div className="flex justify-between items-center mb-4 border-b border-slate-700 pb-2">
+            <h2 className="text-xl font-bold text-white">Recent Company News</h2>
+            <span className="text-xs bg-slate-700 text-slate-300 px-3 py-1 rounded-full">
+              {newsEntities.length} relevant articles
+            </span>
+          </div>
+
+          {newsEntities.length > 0 ? (
+            <div className="space-y-4">
+              {newsEntities.map((ne, i) => {
+                const attrs = ne.attributes || {};
+                return (
+                  <div key={i} className="group border border-slate-700/50 rounded-lg p-4 bg-slate-900/30 hover:bg-slate-700/30 transition-colors">
+                    <div className="flex justify-between items-start gap-4 mb-2">
+                      <a
+                        href={attrs.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="font-medium text-slate-200 group-hover:text-emerald-400 transition-colors leading-tight"
+                      >
+                        {ne.label}
+                      </a>
+                      <span className={`text-xs px-2 py-0.5 rounded-full whitespace-nowrap ${
+                        attrs.confidence === 'high' ? 'bg-emerald-900/30 text-emerald-400 border border-emerald-900/50' :
+                        'bg-yellow-900/30 text-yellow-400 border border-yellow-900/50'
+                      }`}>
+                        {attrs.confidence} match
+                      </span>
+                    </div>
+                    <div className="flex items-center text-xs text-slate-500 space-x-3">
+                      {attrs.publisher && <span>{attrs.publisher}</span>}
+                      {attrs.published_at && (
+                        <>
+                          {attrs.publisher && <span>&bull;</span>}
+                          <span>
+                            {new Date(attrs.published_at).toLocaleDateString(undefined, {
+                              year: 'numeric', month: 'short', day: 'numeric'
+                            })}
+                          </span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="text-slate-500 text-sm">No relevant recent news found.</div>
+          )}
+        </section>
 
         {/* 6. Evidence / Collection Notes */}
         <section className="bg-slate-800 rounded-xl p-6 border border-slate-700 shadow-lg">
