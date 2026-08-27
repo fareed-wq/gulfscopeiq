@@ -18,6 +18,14 @@ function App() {
   const [tenderResult, setTenderResult] = useState(null)
   const [tenderError, setTenderError] = useState(null)
 
+  // Job State
+  const [jobQuery, setJobQuery] = useState('')
+  const [jobCountry, setJobCountry] = useState('SA')
+  const [jobCompany, setJobCompany] = useState('')
+  const [jobLoading, setJobLoading] = useState(false)
+  const [jobResult, setJobResult] = useState(null)
+  const [jobError, setJobError] = useState(null)
+
   useEffect(() => {
     fetch('/api/health')
       .then(res => res.json())
@@ -97,9 +105,150 @@ function App() {
     }
   }
 
+  const handleJobSearch = async (e) => {
+    e.preventDefault()
+    if (!jobQuery.trim()) return
+
+    setJobLoading(true)
+    setJobError(null)
+    setJobResult(null)
+
+    try {
+      const payload = {
+        query: jobQuery.trim(),
+        country_code: jobCountry,
+        company: jobCompany.trim() || null
+      }
+
+      const res = await fetch('/api/jobs/search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      })
+
+      const data = await res.json()
+      if (!res.ok) {
+        throw new Error(
+          Array.isArray(data.detail)
+            ? data.detail[0].msg
+            : data.detail || 'API request failed'
+        )
+      }
+      setJobResult(data)
+    } catch (err) {
+      setJobError(err.message)
+    } finally {
+      setJobLoading(false)
+    }
+  }
+
   const renderCompanyContent = () => {
     if (loading) {
+      const renderJobContent = () => {
+    if (jobLoading) {
       return (
+        <div className="flex flex-col items-center justify-center py-20 text-slate-400">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-500 mb-4"></div>
+          <p>Scanning job sources...</p>
+        </div>
+      )
+    }
+
+    if (jobError) {
+      return (
+        <div className="bg-rose-900/30 border border-rose-500/50 rounded-xl p-6 text-center">
+          <p className="text-rose-400 font-medium mb-2">Analysis Failed</p>
+          <p className="text-rose-300/80 text-sm">{jobError}</p>
+        </div>
+      )
+    }
+
+    if (!jobResult) {
+      return (
+        <div className="flex flex-col items-center justify-center py-20 text-slate-500">
+          <div className="w-16 h-16 mb-4 rounded-2xl bg-slate-800/50 flex items-center justify-center border border-slate-700/50">
+            <svg className="w-8 h-8 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
+            </svg>
+          </div>
+          <p className="text-lg font-medium text-slate-300">Job Market Intelligence</p>
+          <p className="text-sm mt-1">Search for roles across major GCC employers.</p>
+        </div>
+      )
+    }
+
+    const { query, country_code, company, status, jobs = [] } = jobResult
+
+    if (status === 'foundation') {
+      return (
+        <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-12 text-center">
+          <p className="text-slate-300 text-lg mb-2">No matching jobs found.</p>
+          <p className="text-slate-400 text-sm mt-4">Automated job collection is not available for this selection yet.</p>
+        </div>
+      )
+    }
+
+    if (jobs.length === 0) {
+      return (
+        <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-12 text-center">
+          <p className="text-slate-300 text-lg mb-2">No matching jobs found.</p>
+        </div>
+      )
+    }
+
+    return (
+      <div className="space-y-6">
+        <div className="bg-slate-800 rounded-xl p-6 border border-slate-700 shadow-lg">
+          <div className="flex justify-between items-end">
+            <div>
+              <h2 className="text-xl font-bold text-white mb-1">Job Search Results</h2>
+              <div className="text-sm text-slate-400 flex space-x-2">
+                <span>Query: <span className="text-emerald-400">"{query}"</span></span>
+                <span>&bull;</span>
+                <span>Country: <span className="text-slate-300">{country_code}</span></span>
+                <span>&bull;</span>
+                <span>Company: <span className="text-slate-300">{company || 'All Employers'}</span></span>
+              </div>
+            </div>
+            <span className="text-xs bg-emerald-900/40 text-emerald-400 border border-emerald-800 px-3 py-1.5 rounded-full font-medium shadow-sm">
+              {jobs.length} Found
+            </span>
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          {jobs.map((job, i) => (
+            <div key={i} className="bg-slate-800 rounded-xl p-6 border border-slate-700 shadow-lg hover:border-slate-600 transition-colors">
+              <div className="flex justify-between items-start gap-4 mb-3">
+                <a href={job.source_url} target="_blank" rel="noreferrer" className="text-lg font-semibold text-emerald-400 hover:text-emerald-300 transition-colors">
+                  {job.title}
+                </a>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-y-2 gap-x-4 text-sm">
+                {job.company && (
+                  <div><span className="text-slate-500">Company:</span> <span className="text-slate-300">{job.company}</span></div>
+                )}
+                {job.location && (
+                  <div><span className="text-slate-500">Location:</span> <span className="text-slate-300">{job.location}</span></div>
+                )}
+                {job.department && (
+                  <div><span className="text-slate-500">Department:</span> <span className="text-slate-300">{job.department}</span></div>
+                )}
+                {job.attributes?.facility && (
+                  <div><span className="text-slate-500">Facility/Org:</span> <span className="text-slate-300">{job.attributes.facility}</span></div>
+                )}
+                {job.published_at && (
+                  <div><span className="text-slate-500">Published:</span> <span className="text-slate-300">{job.published_at}</span></div>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    )
+  }
+
+  return (
         <div className="flex flex-col items-center justify-center p-12 space-y-4">
           <div className="w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
           <div className="text-slate-400 font-medium">Gathering intelligence...</div>
@@ -518,9 +667,67 @@ function App() {
           >
             Tenders
           </button>
+          <button
+            onClick={() => setActiveTab('job')}
+            className={`flex-1 py-1.5 text-sm font-medium rounded-md transition-colors ${
+              activeTab === 'job' ? 'bg-slate-700 text-white shadow' : 'text-slate-400 hover:text-slate-300'
+            }`}
+          >
+            Jobs
+          </button>
         </div>
 
-        {activeTab === 'company' ? (
+        {activeTab === 'job' ? (
+          <form onSubmit={handleJobSearch} className="space-y-4 flex-1">
+            <div>
+              <label htmlFor="jobQuery" className="block text-sm font-medium text-slate-300 mb-1">Keyword *</label>
+              <input
+                id="jobQuery"
+                type="text"
+                required
+                placeholder="e.g. security, engineer..."
+                className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2.5 text-sm text-white focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 outline-none transition-all placeholder:text-slate-600"
+                value={jobQuery}
+                onChange={e => setJobQuery(e.target.value)}
+              />
+            </div>
+
+            <div>
+              <label htmlFor="jobCountry" className="block text-sm font-medium text-slate-300 mb-1">Country</label>
+              <select
+                id="jobCountry"
+                className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2.5 text-sm text-white focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 outline-none transition-all"
+                value={jobCountry}
+                onChange={e => setJobCountry(e.target.value)}
+              >
+                <option value="SA">Saudi Arabia (SA)</option>
+              </select>
+            </div>
+
+            <div>
+              <label htmlFor="jobCompany" className="block text-sm font-medium text-slate-300 mb-1">Employer</label>
+              <select
+                id="jobCompany"
+                className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2.5 text-sm text-white focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 outline-none transition-all"
+                value={jobCompany}
+                onChange={e => setJobCompany(e.target.value)}
+              >
+                <option value="">All Configured Employers</option>
+                <option value="Saudi Aramco">Saudi Aramco</option>
+                <option value="STC">STC</option>
+                <option value="SABIC">SABIC</option>
+              </select>
+            </div>
+
+            <button
+              type="submit"
+              disabled={jobLoading || !jobQuery.trim()}
+              className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-700 disabled:text-slate-500 text-white font-medium py-2.5 rounded-lg transition-colors focus:ring-4 focus:ring-emerald-500/20"
+            >
+              {jobLoading ? 'Searching...' : 'Search Jobs'}
+            </button>
+          </form>
+        ) : activeTab === 'company' ? (
           <form onSubmit={handleInvestigate} className="space-y-4 flex-1">
             <div>
               <label htmlFor="companyName" className="block text-sm font-medium text-slate-300 mb-1">Company Name *</label>
@@ -609,7 +816,7 @@ function App() {
       {/* Main Content / Right column */}
       <div className="flex-1 p-6 md:p-8 lg:p-12 overflow-y-auto">
         <div className="max-w-4xl mx-auto">
-          {activeTab === 'company' ? renderCompanyContent() : renderTenderContent()}
+          {activeTab === 'job' ? renderJobContent() : activeTab === 'company' ? renderCompanyContent() : renderTenderContent()}
         </div>
       </div>
     </div>
