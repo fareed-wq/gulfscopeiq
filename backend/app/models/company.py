@@ -13,9 +13,14 @@ class Company(BaseModel):
     evidence: list[Evidence] = Field(default_factory=list)
     attributes: dict = Field(default_factory=dict)
 
+from app.models.company_registry import RegistryDataInput
+
 class CompanyInvestigateRequest(BaseModel):
     company_name: str
     website: Optional[str] = None
+    country_code: Optional[str] = None
+    registration_number: Optional[str] = None
+    registry_data: Optional[RegistryDataInput] = None
 
     @field_validator('company_name')
     @classmethod

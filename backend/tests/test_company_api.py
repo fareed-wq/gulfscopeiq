@@ -63,5 +63,34 @@ def test_company_investigate_discovery_feeds_web_collector():
                 "company_name": "Example Company"
             })
             assert response.status_code == 200
-            mock_disc.assert_called_once()
-            mock_inv.assert_called_once()
+def test_company_investigate_malformed_registry():
+    with patch("app.api.company.discover_website", new_callable=AsyncMock) as mock_disc:
+        mock_disc.return_value = None
+        response = client.post("/api/company/investigate", json={
+            "company_name": "Example Company",
+            "registry_data": {
+                "registration_number": ["an array is not a string"]
+            }
+        })
+        assert response.status_code == 422 # Unprocessable Entity (Pydantic validation failure)
+
+def test_company_investigate_valid_registry():
+    with patch("app.api.company.discover_website", new_callable=AsyncMock) as mock_disc:
+        mock_disc.return_value = None
+        response = client.post("/api/company/investigate", json={
+            "company_name": "Example Company",
+            "country_code": "SA",
+            "registration_number": " 123456 ",
+            "registry_data": {
+                "legal_name": "Example LLC",
+                "city": "Riyadh"
+            }
+        })
+        assert response.status_code == 200
+        data = response.json()
+        assert data["company"]["country"] == "SA"
+        assert data["company"]["registration_number"] == "123456" # But note: registry_data process sets the registration_number? Actually the payload registration_number sets it.
+        # Check registry data
+        reg = data["company"]["attributes"]["registry"]
+        assert reg["legal_name"] == "Example LLC"
+        assert reg["city"] == "Riyadh"

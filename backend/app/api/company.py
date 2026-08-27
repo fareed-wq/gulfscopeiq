@@ -1,7 +1,8 @@
-from fastapi import APIRouter
+﻿from fastapi import APIRouter
 from app.models.company import CompanyInvestigateRequest, CompanyInvestigateResponse, Company
 from app.intelligence.company_web import investigate_website
 from app.intelligence.company_discovery import discover_website
+from app.intelligence.company_registry import process_registry_data
 
 router = APIRouter()
 
@@ -9,11 +10,16 @@ router = APIRouter()
 async def investigate_company(request: CompanyInvestigateRequest):
     company = Company(
         name=request.company_name,
-        normalized_name=request.company_name.lower()
+        normalized_name=request.company_name.lower(),
+        country=request.country_code.strip() if request.country_code else None,
+        registration_number=request.registration_number.strip() if request.registration_number else None
     )
-    
+
     entities = []
     relationships = []
+
+    if request.registry_data:
+        await process_registry_data(request.registry_data, company, entities)
 
     website_to_investigate = request.website
     if not website_to_investigate:
