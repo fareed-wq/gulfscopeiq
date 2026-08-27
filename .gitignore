@@ -1,0 +1,27 @@
+# Python virtual environments / cache
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.coverage
+venv/
+env/
+.venv/
+.env
+
+# Node modules / build output
+node_modules/
+dist/
+build/
+.next/
+out/
+.npm/
+
+# OS / Editor junk
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.bak
+*~
