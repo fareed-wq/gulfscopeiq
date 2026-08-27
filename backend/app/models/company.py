@@ -11,9 +11,11 @@ class Company(BaseModel):
     registration_number: Optional[str] = None
     status: Optional[str] = None
     evidence: list[Evidence] = Field(default_factory=list)
+    attributes: dict = Field(default_factory=dict)
 
 class CompanyInvestigateRequest(BaseModel):
     company_name: str
+    website: Optional[str] = None
 
     @field_validator('company_name')
     @classmethod
