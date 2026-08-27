@@ -1,9 +1,13 @@
 from fastapi.testclient import TestClient
+from unittest.mock import patch, AsyncMock
 from app.main import app
 
 client = TestClient(app)
 
-def test_jobs_search_valid():
+@patch('app.api.jobs.search_successfactors_jobs', new_callable=AsyncMock)
+def test_jobs_search_valid(mock_search):
+    mock_search.return_value = ([], [], [])
+
     response = client.post("/api/jobs/search", json={
         "query": "cybersecurity",
         "country_code": "SA",
@@ -14,7 +18,7 @@ def test_jobs_search_valid():
     assert data["query"] == "cybersecurity"
     assert data["country_code"] == "SA"
     assert data["company"] == "Aramco"
-    assert data["status"] == "foundation"
+    assert data["status"] == "collected"
     assert data["jobs"] == []
     assert data["entities"] == []
     assert data["relationships"] == []
@@ -64,9 +68,42 @@ def test_jobs_search_empty_query_rejected():
         "country_code": "SA"
     })
     assert response.status_code == 422
-    
+
 def test_jobs_search_missing_query_rejected():
     response = client.post("/api/jobs/search", json={
         "country_code": "SA"
     })
     assert response.status_code == 422
+
+from unittest.mock import patch, AsyncMock
+from app.models.job import Job
+
+@patch('app.api.jobs.search_successfactors_jobs', new_callable=AsyncMock)
+def test_jobs_search_sa_successfactors(mock_search):
+    mock_search.return_value = ([
+        Job(title='SF Job 1', country_code='SA', company='STC')
+    ], [], [])
+
+    response = client.post('/api/jobs/search', json={
+        'query': 'engineer',
+        'country_code': 'SA',
+        'company': 'stc'
+    })
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data['status'] == 'collected'
+    assert len(data['jobs']) == 1
+    assert data['jobs'][0]['title'] == 'SF Job 1'
+
+def test_jobs_search_sa_unsupported_company():
+    response = client.post('/api/jobs/search', json={
+        'query': 'engineer',
+        'country_code': 'SA',
+        'company': 'Unknown Company'
+    })
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data['status'] == 'foundation'
+    assert len(data['jobs']) == 0
