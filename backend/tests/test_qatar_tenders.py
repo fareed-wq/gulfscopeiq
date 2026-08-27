@@ -1,8 +1,16 @@
 import pytest
 import asyncio
-from unittest.mock import AsyncMock, patch, MagicMock
+from unittest.mock import AsyncMock, patch
 from app.intelligence.qatar_tenders import search_qatar_tenders, DownloadTooLargeError
 from app.models.tender import Tender
+
+class MockResponse:
+    def __init__(self):
+        self.content = b""
+
+    @property
+    def text(self):
+        return self.content.decode(errors="replace")
 
 @pytest.fixture
 def mock_session():
@@ -11,7 +19,7 @@ def mock_session():
 
 def test_qatar_tenders_missing_token(mock_session):
     def mock_request(method, url, **kwargs):
-        res = MagicMock()
+        res = MockResponse()
         cb = kwargs.get("content_callback")
         if cb: cb(b"<html><body>No token here</body></html>")
         return res
@@ -24,7 +32,7 @@ def test_qatar_tenders_missing_token(mock_session):
 
 def test_qatar_tenders_success(mock_session):
     def mock_request(method, url, **kwargs):
-        res = MagicMock()
+        res = MockResponse()
         cb = kwargs.get("content_callback")
         if method == "GET":
             if cb: cb(b'<html><body><input name="__RequestVerificationToken" value="abc123" /></body></html>')
@@ -59,7 +67,7 @@ def test_qatar_tenders_success(mock_session):
 
 def test_qatar_tenders_max_20_and_dedup(mock_session):
     def mock_request(method, url, **kwargs):
-        res = MagicMock()
+        res = MockResponse()
         cb = kwargs.get("content_callback")
         if method == "GET":
             if cb: cb(b'<html><body><input name="__RequestVerificationToken" value="abc" /></body></html>')
@@ -83,7 +91,7 @@ def test_qatar_tenders_network_error(mock_session):
 
 def test_qatar_tenders_too_large(mock_session):
     def mock_request(method, url, **kwargs):
-        res = MagicMock()
+        res = MockResponse()
         cb = kwargs.get("content_callback")
         if cb: 
             # Simulate chunks until it throws

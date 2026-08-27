@@ -26,7 +26,7 @@ async def _fetch_with_cap(session: AsyncSession, method: str, url: str, **kwargs
         body.extend(chunk)
         
     res = await session.request(method, url, content_callback=cb, **kwargs)
-    res.text = body.decode(errors="replace")
+    res.content = bytes(body)
     return res
 
 async def search_qatar_tenders(query: str, session: Optional[AsyncSession] = None) -> Tuple[List[Tender], List[IntelligenceEntity], List[IntelligenceRelationship]]:
