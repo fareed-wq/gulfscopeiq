@@ -1,6 +1,7 @@
 from fastapi import APIRouter
 from app.models.company import CompanyInvestigateRequest, CompanyInvestigateResponse, Company
 from app.intelligence.company_web import investigate_website
+from app.intelligence.company_discovery import discover_website
 
 router = APIRouter()
 
@@ -14,8 +15,12 @@ async def investigate_company(request: CompanyInvestigateRequest):
     entities = []
     relationships = []
 
-    if request.website:
-        await investigate_website(request.website, company, entities, relationships)
+    website_to_investigate = request.website
+    if not website_to_investigate:
+        website_to_investigate = await discover_website(company, request.company_name)
+
+    if website_to_investigate:
+        await investigate_website(website_to_investigate, company, entities, relationships)
 
     return CompanyInvestigateResponse(
         query=request.company_name,
