@@ -414,6 +414,9 @@ function App() {
       return (
         <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-12 text-center">
           <p className="text-slate-300 text-lg mb-2">No tenders found for "{query}".</p>
+          {country_code === 'KW' && (
+            <p className="text-slate-400 text-sm mt-4">Search covers up to 40 recent CAPT opening tenders and is not an exhaustive archive search.</p>
+          )}
           {country_code === 'SA' && (
             <p className="text-slate-400">Automated Saudi tender collection is not available yet.</p>
           )}
@@ -438,6 +441,13 @@ function App() {
           </div>
         </div>
 
+        {country_code === 'KW' && (
+          <div className="bg-slate-800/80 border border-slate-700 rounded-xl p-4 shadow text-slate-300 text-sm">
+            <span className="font-semibold text-emerald-400 mr-2">Note:</span>
+            {tenders[0]?.attributes?.coverage_note || "Search covers up to 40 recent CAPT opening tenders and is not an exhaustive archive search."}
+          </div>
+        )}
+
         <div className="space-y-4">
           {tenders.map((tender, i) => (
             <div key={i} className="bg-slate-800 rounded-xl p-6 border border-slate-700 shadow-lg hover:border-slate-600 transition-colors">
@@ -457,6 +467,9 @@ function App() {
                 )}
                 {tender.issuing_authority && (
                   <div><span className="text-slate-500">Authority:</span> <span className="text-slate-300">{tender.issuing_authority}</span></div>
+                )}
+                {tender.published_at && (
+                  <div><span className="text-slate-500">Published:</span> <span className="text-slate-300">{tender.published_at}</span></div>
                 )}
                 {tender.deadline && (
                   <div><span className="text-slate-500">Deadline:</span> <span className="text-slate-300">{tender.deadline}</span></div>
@@ -559,6 +572,7 @@ function App() {
                 onChange={e => setTenderCountry(e.target.value)}
               >
                 <option value="QA">Qatar (QA)</option>
+                <option value="KW">Kuwait (KW)</option>
                 <option value="AE">United Arab Emirates (AE) — Source temporarily unavailable</option>
                 <option value="SA">Saudi Arabia (SA) - Foundation / not automated yet</option>
               </select>
