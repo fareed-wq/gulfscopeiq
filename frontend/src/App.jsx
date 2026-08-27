@@ -18,6 +18,16 @@ function App() {
   const [tenderResult, setTenderResult] = useState(null)
   const [tenderError, setTenderError] = useState(null)
 
+
+  // Document State
+  const [docQuery, setDocQuery] = useState('')
+  const [docCountry, setDocCountry] = useState('SA')
+  const [docOrg, setDocOrg] = useState('')
+  const [docType, setDocType] = useState('')
+  const [docLoading, setDocLoading] = useState(false)
+  const [docResult, setDocResult] = useState(null)
+  const [docError, setDocError] = useState(null)
+
   // Job State
   const [jobQuery, setJobQuery] = useState('')
   const [jobCountry, setJobCountry] = useState('SA')
@@ -102,6 +112,45 @@ function App() {
       setTenderError(err.message)
     } finally {
       setTenderLoading(false)
+    }
+  }
+
+
+  const handleDocumentSearch = async (e) => {
+    e.preventDefault()
+    if (!docQuery.trim()) return
+
+    setDocLoading(true)
+    setDocError(null)
+    setDocResult(null)
+
+    try {
+      const payload = {
+        query: docQuery.trim(),
+        country_code: docCountry,
+        organization: docOrg || null,
+        document_type: docType || null
+      }
+
+      const res = await fetch('/api/documents/search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      })
+
+      const data = await res.json()
+      if (!res.ok) {
+        throw new Error(
+          Array.isArray(data.detail)
+            ? data.detail[0].msg
+            : data.detail || 'API request failed'
+        )
+      }
+      setDocResult(data)
+    } catch (err) {
+      setDocError(err.message)
+    } finally {
+      setDocLoading(false)
     }
   }
 
@@ -527,6 +576,122 @@ function App() {
     )
   }
 
+
+  const renderDocumentContent = () => {
+    if (docError) {
+      return (
+        <div className="bg-rose-500/10 border border-rose-500/50 rounded-lg p-6">
+          <h3 className="text-rose-500 font-semibold mb-2">Search Failed</h3>
+          <p className="text-slate-300 text-sm">{docError}</p>
+        </div>
+      )
+    }
+
+    if (!docResult) {
+      return (
+        <div className="flex flex-col items-center justify-center h-full text-slate-500 space-y-4 py-20">
+          <div className="w-16 h-16 border-4 border-slate-800 rounded-full flex items-center justify-center">
+            <span className="text-2xl">📄</span>
+          </div>
+          <p>Search for corporate documents, reports, and filings</p>
+        </div>
+      )
+    }
+
+    const { status, query, country_code, organization, document_type, documents = [] } = docResult
+
+    if (status === 'foundation') {
+      return (
+        <div className="bg-slate-800 border border-slate-700 rounded-lg p-6 text-center">
+          <p className="text-slate-300">Automated document collection is not available for this selection yet.</p>
+        </div>
+      )
+    }
+
+    return (
+      <div className="space-y-6">
+        <div className="bg-slate-800/50 border border-slate-700 rounded-lg p-5">
+          <h2 className="text-lg font-semibold text-white mb-2">Search Summary</h2>
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
+            <div>
+              <div className="text-slate-500 mb-1">Query</div>
+              <div className="text-slate-300 font-medium">{query}</div>
+            </div>
+            <div>
+              <div className="text-slate-500 mb-1">Country</div>
+              <div className="text-slate-300 font-medium">{country_code}</div>
+            </div>
+            <div>
+              <div className="text-slate-500 mb-1">Organization</div>
+              <div className="text-slate-300 font-medium">{organization || 'All Organizations'}</div>
+            </div>
+            <div>
+              <div className="text-slate-500 mb-1">Document Type</div>
+              <div className="text-slate-300 font-medium">{document_type || 'All Types'}</div>
+            </div>
+            <div>
+              <div className="text-slate-500 mb-1">Results</div>
+              <div className="text-emerald-400 font-medium">{documents.length}</div>
+            </div>
+          </div>
+        </div>
+
+        {documents.length === 0 ? (
+          <div className="bg-slate-800 border border-slate-700 rounded-lg p-6 text-center">
+            <p className="text-slate-300">No matching documents found.</p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {documents.map((doc, idx) => (
+              <div key={idx} className="bg-slate-800 border border-slate-700 rounded-lg p-5 hover:border-slate-600 transition-colors">
+                <div className="flex justify-between items-start mb-2">
+                  <h3 className="text-lg font-semibold text-white">{doc.title}</h3>
+                  {doc.document_type && (
+                    <span className="px-2.5 py-1 rounded bg-slate-700/50 text-slate-300 text-xs font-medium border border-slate-600/50">
+                      {doc.document_type}
+                    </span>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-2 gap-y-2 text-sm mb-4">
+                  <div>
+                    <span className="text-slate-500">Organization: </span>
+                    <span className="text-slate-300">{doc.organization}</span>
+                  </div>
+                  {doc.mime_type && (
+                    <div>
+                      <span className="text-slate-500">Format: </span>
+                      <span className="text-slate-300">{doc.mime_type}</span>
+                    </div>
+                  )}
+                  {doc.published_at && (
+                    <div>
+                      <span className="text-slate-500">Published: </span>
+                      <span className="text-slate-300">{doc.published_at}</span>
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex gap-4">
+                  {doc.source_url && (
+                    <a href={doc.source_url} target="_blank" rel="noreferrer" className="text-sm text-emerald-400 hover:text-emerald-300 font-medium transition-colors">
+                      Source Page
+                    </a>
+                  )}
+                  {doc.file_url && (
+                    <a href={doc.file_url} target="_blank" rel="noreferrer" className="text-sm text-blue-400 hover:text-blue-300 font-medium transition-colors">
+                      Open PDF
+                    </a>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    )
+  }
+
   const renderTenderContent = () => {
     if (tenderLoading) {
       return (
@@ -667,6 +832,15 @@ function App() {
           >
             Tenders
           </button>
+
+          <button
+            onClick={() => setActiveTab('document')}
+            className={`flex-1 py-3 px-4 text-sm font-medium rounded-lg transition-all ${
+              activeTab === 'document' ? 'bg-slate-700 text-white shadow' : 'text-slate-400 hover:text-slate-300'
+            }`}
+          >
+            Documents
+          </button>
           <button
             onClick={() => setActiveTab('job')}
             className={`flex-1 py-1.5 text-sm font-medium rounded-md transition-colors ${
@@ -677,7 +851,71 @@ function App() {
           </button>
         </div>
 
-        {activeTab === 'job' ? (
+        {activeTab === 'document' ? (
+          <form onSubmit={handleDocumentSearch} className="space-y-4 flex-1">
+            <div>
+              <label htmlFor="docQuery" className="block text-sm font-medium text-slate-300 mb-1">Keyword *</label>
+              <input
+                id="docQuery"
+                type="text"
+                required
+                placeholder="e.g. report, sustainability..."
+                className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2.5 text-sm text-white focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 outline-none transition-all placeholder:text-slate-600"
+                value={docQuery}
+                onChange={e => setDocQuery(e.target.value)}
+              />
+            </div>
+
+            <div>
+              <label htmlFor="docCountry" className="block text-sm font-medium text-slate-300 mb-1">Country</label>
+              <select
+                id="docCountry"
+                className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2.5 text-sm text-white focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 outline-none transition-all"
+                value={docCountry}
+                onChange={e => setDocCountry(e.target.value)}
+              >
+                <option value="SA">Saudi Arabia (SA)</option>
+              </select>
+            </div>
+
+            <div>
+              <label htmlFor="docOrg" className="block text-sm font-medium text-slate-300 mb-1">Organization</label>
+              <select
+                id="docOrg"
+                className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2.5 text-sm text-white focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 outline-none transition-all"
+                value={docOrg}
+                onChange={e => setDocOrg(e.target.value)}
+              >
+                <option value="">All Configured Organizations</option>
+                <option value="SABIC">SABIC</option>
+              </select>
+            </div>
+
+            <div>
+              <label htmlFor="docType" className="block text-sm font-medium text-slate-300 mb-1">Document Type</label>
+              <select
+                id="docType"
+                className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2.5 text-sm text-white focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 outline-none transition-all"
+                value={docType}
+                onChange={e => setDocType(e.target.value)}
+              >
+                <option value="">All Types</option>
+                <option value="Annual Report">Annual Report</option>
+                <option value="Board Report">Board Report</option>
+                <option value="Investor Presentation">Investor Presentation</option>
+                <option value="ESG Report">ESG Report</option>
+              </select>
+            </div>
+
+            <button
+              type="submit"
+              disabled={docLoading || !docQuery.trim()}
+              className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-700 disabled:text-slate-500 text-white font-medium py-2.5 rounded-lg transition-colors focus:ring-4 focus:ring-emerald-500/20"
+            >
+              {docLoading ? 'Searching...' : 'Search Documents'}
+            </button>
+          </form>
+        ) : activeTab === 'job' ? (
           <form onSubmit={handleJobSearch} className="space-y-4 flex-1">
             <div>
               <label htmlFor="jobQuery" className="block text-sm font-medium text-slate-300 mb-1">Keyword *</label>
@@ -816,7 +1054,7 @@ function App() {
       {/* Main Content / Right column */}
       <div className="flex-1 p-6 md:p-8 lg:p-12 overflow-y-auto">
         <div className="max-w-4xl mx-auto">
-          {activeTab === 'job' ? renderJobContent() : activeTab === 'company' ? renderCompanyContent() : renderTenderContent()}
+          {activeTab === 'document' ? renderDocumentContent() : activeTab === 'job' ? renderJobContent() : activeTab === 'company' ? renderCompanyContent() : renderTenderContent()}
         </div>
       </div>
     </div>
