@@ -90,3 +90,21 @@ def test_tender_search_non_kw_qa_still_foundation():
     data = response.json()
     assert data["status"] == "foundation"
     assert data["tenders"] == []
+
+@patch('app.api.tender.search_bahrain_tenders', new_callable=AsyncMock)
+def test_tender_search_bahrain(mock_search):
+    mock_search.return_value = ([
+        Tender(title='BH Tender 1', country_code='BH')
+    ], [], [])
+
+    response = client.post('/api/tenders/search', json={
+        'query': 'security',
+        'country_code': 'bh'
+    })
+    assert response.status_code == 200
+    data = response.json()
+    assert data['query'] == 'security'
+    assert data['country_code'] == 'BH'
+    assert data['status'] == 'collected'
+    assert len(data['tenders']) == 1
+    assert data['tenders'][0]['title'] == 'BH Tender 1'
