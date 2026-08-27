@@ -1,5 +1,7 @@
 from fastapi.testclient import TestClient
+from unittest.mock import patch, AsyncMock
 from app.main import app
+from app.models.tender import Tender
 
 client = TestClient(app)
 
@@ -37,7 +39,26 @@ def test_tender_search_mutable_defaults():
     response1 = client.post("/api/tenders/search", json={"query": "test1"})
     data1 = response1.json()
     assert data1["tenders"] == []
-    
+
     response2 = client.post("/api/tenders/search", json={"query": "test2"})
     data2 = response2.json()
     assert data2["tenders"] == []
+
+@patch("app.api.tender.search_qatar_tenders", new_callable=AsyncMock)
+def test_tender_search_qatar(mock_search):
+    # Mock the return value
+    mock_search.return_value = ([
+        Tender(title="QA Tender 1", country_code="QA")
+    ], [], [])
+
+    response = client.post("/api/tenders/search", json={
+        "query": "cybersecurity",
+        "country_code": "qa"
+    })
+    assert response.status_code == 200
+    data = response.json()
+    assert data["query"] == "cybersecurity"
+    assert data["country_code"] == "QA"
+    assert data["status"] == "collected"
+    assert len(data["tenders"]) == 1
+    assert data["tenders"][0]["title"] == "QA Tender 1"

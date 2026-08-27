@@ -5,3 +5,5 @@ pytest
 httpx
 tldextract==5.3.2
 certifi
+curl-cffi
+beautifulsoup4
