@@ -468,8 +468,14 @@ function App() {
                 {tender.issuing_authority && (
                   <div><span className="text-slate-500">Authority:</span> <span className="text-slate-300">{tender.issuing_authority}</span></div>
                 )}
+                {tender.attributes?.tender_type && (
+                  <div><span className="text-slate-500">Type:</span> <span className="text-slate-300">{tender.attributes.tender_type}</span></div>
+                )}
                 {tender.published_at && (
                   <div><span className="text-slate-500">Published:</span> <span className="text-slate-300">{tender.published_at}</span></div>
+                )}
+                {tender.attributes?.purchase_before && (
+                  <div><span className="text-slate-500">Purchase Before:</span> <span className="text-slate-300">{tender.attributes.purchase_before}</span></div>
                 )}
                 {tender.deadline && (
                   <div><span className="text-slate-500">Deadline:</span> <span className="text-slate-300">{tender.deadline}</span></div>
@@ -573,6 +579,7 @@ function App() {
               >
                 <option value="QA">Qatar (QA)</option>
                 <option value="KW">Kuwait (KW)</option>
+                <option value="BH">Bahrain (BH)</option>
                 <option value="AE">United Arab Emirates (AE) — Source temporarily unavailable</option>
                 <option value="SA">Saudi Arabia (SA) - Foundation / not automated yet</option>
               </select>
