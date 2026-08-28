@@ -273,7 +273,7 @@ function App() {
        return "No matching results found."
     }
 
-    const { status, company_name, country_code, query, modules, organization_clusters, company, jobs, documents, tenders, entities } = intelResult
+    const { status, company_name, country_code, query, modules, organization_clusters, company, jobs, documents, tenders, infrastructure, entities } = intelResult
     const newsEntities = (entities || []).filter(e => e.type === 'news_article')
     const primaryCluster = (organization_clusters && organization_clusters.length > 0) ? organization_clusters[0] : null
 
@@ -298,8 +298,8 @@ function App() {
           </div>
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-           {['company', 'news', 'jobs', 'documents', 'tenders'].map(mod => {
+        <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
+           {['company', 'news', 'jobs', 'documents', 'tenders', 'infrastructure'].map(mod => {
              const mData = modules?.[mod]
              if(!mData) return null
              return (
@@ -450,6 +450,91 @@ function App() {
             <p className="text-slate-500 italic text-sm">{getEmptyStateText(modules?.tenders?.status)}</p>
           )}
         </div>
+
+          <div className="space-y-3 mt-8">
+            <h3 className="text-lg font-semibold text-white">Infrastructure Footprint</h3>
+            {(!infrastructure || modules?.infrastructure?.status === 'skipped') && (
+              <p className="text-slate-500 italic text-sm">No verified company domain was available for infrastructure analysis.</p>
+            )}
+            {modules?.infrastructure?.status === 'unavailable' && (
+              <p className="text-slate-500 italic text-sm">Infrastructure intelligence is currently unavailable.</p>
+            )}
+            {modules?.infrastructure?.status === 'error' && (
+              <p className="text-slate-500 italic text-sm">Infrastructure module temporarily unavailable.</p>
+            )}
+
+            {infrastructure && ['collected', 'partial'].includes(modules?.infrastructure?.status) && (
+              <div className="space-y-4">
+                {modules.infrastructure.status === 'partial' && (
+                  <div className="bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 p-3 rounded-lg text-sm">
+                    Some infrastructure data could not be collected.
+                  </div>
+                )}
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="bg-slate-800 p-4 rounded-lg border border-slate-700 space-y-2">
+                    <h4 className="font-semibold text-emerald-400">Domain & Registration</h4>
+                    <p className="text-sm"><span className="text-slate-500">Domain:</span> {infrastructure.domain}</p>
+                    {infrastructure.registrar && <p className="text-sm"><span className="text-slate-500">Registrar:</span> {infrastructure.registrar}</p>}
+                    {infrastructure.registered_at && <p className="text-sm"><span className="text-slate-500">Registered:</span> {infrastructure.registered_at}</p>}
+                    {infrastructure.expires_at && <p className="text-sm"><span className="text-slate-500">Expires:</span> {infrastructure.expires_at}</p>}
+                    {infrastructure.domain_status?.length > 0 && (
+                      <p className="text-sm"><span className="text-slate-500">Status:</span> {infrastructure.domain_status[0]}</p>
+                    )}
+                  </div>
+
+                  <div className="bg-slate-800 p-4 rounded-lg border border-slate-700 space-y-2">
+                    <h4 className="font-semibold text-emerald-400">DNS & TLS</h4>
+                    <p className="text-sm"><span className="text-slate-500">IPv4 ({infrastructure.ipv4?.length || 0}):</span> {infrastructure.ipv4?.slice(0, 3).join(', ') || 'None'}</p>
+                    <p className="text-sm"><span className="text-slate-500">IPv6 ({infrastructure.ipv6?.length || 0}):</span> {infrastructure.ipv6?.slice(0, 3).join(', ') || 'None'}</p>
+                    {infrastructure.mx?.length > 0 && <p className="text-sm"><span className="text-slate-500">MX:</span> {infrastructure.mx.length} records</p>}
+                    {infrastructure.nameservers?.length > 0 && <p className="text-sm"><span className="text-slate-500">NS:</span> {infrastructure.nameservers.length} records</p>}
+
+                    {infrastructure.tls && (
+                      <div className="mt-3 pt-3 border-t border-slate-700">
+                        <p className="text-sm"><span className="text-slate-500">TLS Issuer:</span> {infrastructure.tls.issuer}</p>
+                        <p className="text-sm"><span className="text-slate-500">Valid:</span> {infrastructure.tls.valid_from} to {infrastructure.tls.valid_until}</p>
+                        <p className="text-sm"><span className="text-slate-500">SAN Count:</span> {infrastructure.tls.san_count}</p>
+                        {infrastructure.tls.san_names?.length > 0 && (
+                          <p className="text-sm truncate"><span className="text-slate-500">SANs:</span> {infrastructure.tls.san_names.slice(0, 3).join(', ')}</p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {infrastructure.ip_intelligence?.length > 0 && (
+                    <div className="bg-slate-800 p-4 rounded-lg border border-slate-700 space-y-2">
+                      <h4 className="font-semibold text-emerald-400">Network Organization</h4>
+                      <div className="space-y-2 mt-2">
+                        {infrastructure.ip_intelligence.map((ipInfo, idx) => (
+                          <div key={idx} className="text-sm border-l-2 border-slate-600 pl-2">
+                            <div className="font-medium text-slate-200">{ipInfo.ip}</div>
+                            {ipInfo.network_organization && <div className="text-slate-400">{ipInfo.network_organization}</div>}
+                            {ipInfo.country && <div className="text-slate-500 text-xs">{ipInfo.country}</div>}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {infrastructure.technologies?.length > 0 && (
+                    <div className="bg-slate-800 p-4 rounded-lg border border-slate-700 space-y-2">
+                      <h4 className="font-semibold text-emerald-400">Technologies</h4>
+                      <div className="flex flex-wrap gap-2 mt-2">
+                        {infrastructure.technologies.map((tech, idx) => (
+                          <span key={idx} className="px-2 py-1 bg-slate-700 text-slate-300 rounded text-xs">
+                            {tech}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
 
       </div>
     )

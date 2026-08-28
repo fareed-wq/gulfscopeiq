@@ -21,14 +21,35 @@ const IntelligenceGraph = ({ data }) => {
       attributes: {}
     };
 
+
     const allConnectedEdges = relationships.filter(r => r.source === rootId || r.target === rootId);
-    const connectedEntityIds = new Set(allConnectedEdges.map(r => r.source === rootId ? r.target : r.source));
+    const hop1EntityIds = new Set(allConnectedEdges.map(r => r.source === rootId ? r.target : r.source));
+    hop1EntityIds.add(rootId);
+
+    const hop2Edges = relationships.filter(r =>
+       (hop1EntityIds.has(r.source) || hop1EntityIds.has(r.target)) &&
+       (r.type === 'resolves_to' || r.type === 'uses')
+    );
+
+    // Combine edges and unique entity IDs
+    const finalEdges = [...allConnectedEdges, ...hop2Edges];
+    const connectedEntityIds = new Set();
+    finalEdges.forEach(r => { connectedEntityIds.add(r.source); connectedEntityIds.add(r.target); });
+
 
     let validEntities = entities.filter(e => connectedEntityIds.has(e.id));
 
     if (filter !== 'All') {
-      const targetType = filter === 'News' ? 'news_article' : filter === 'Jobs' ? 'job' : filter === 'Documents' ? 'document' : 'tender';
-      validEntities = validEntities.filter(e => e.type.toLowerCase() === targetType);
+
+      let allowedTypes = [];
+      if (filter === 'News') allowedTypes = ['news_article'];
+      else if (filter === 'Jobs') allowedTypes = ['job'];
+      else if (filter === 'Documents') allowedTypes = ['document'];
+      else if (filter === 'Tenders') allowedTypes = ['tender'];
+      else if (filter === 'Infrastructure') allowedTypes = ['domain', 'ipaddress', 'technology'];
+
+      validEntities = validEntities.filter(e => allowedTypes.includes(e.type.toLowerCase()));
+
     }
 
     const totalConnected = validEntities.length;
@@ -65,7 +86,7 @@ const IntelligenceGraph = ({ data }) => {
     }
 
     const width = 800;
-    const height = 500;
+    const height = 600;
     const cx = width / 2;
     const cy = height / 2;
     const radius = 180;
@@ -74,18 +95,24 @@ const IntelligenceGraph = ({ data }) => {
 
     finalEntities.sort((a, b) => a.type.localeCompare(b.type));
 
+
     finalEntities.forEach((e, i) => {
       const angle = (i / finalEntities.length) * 2 * Math.PI - Math.PI / 2;
+      let r = radius;
+      if (e.type === 'Domain') r = 120;
+      else if (e.type === 'IPAddress' || e.type === 'Technology') r = 240;
+
       nodes.push({
         ...e,
-        x: cx + radius * Math.cos(angle),
-        y: cy + radius * Math.sin(angle),
+        x: cx + r * Math.cos(angle),
+        y: cy + r * Math.sin(angle),
         isRoot: false
       });
     });
 
+
     const nodeMap = new Map(nodes.map(n => [n.id, n]));
-    const edges = allConnectedEdges
+    const edges = finalEdges
       .filter(r => nodeMap.has(r.source) && nodeMap.has(r.target))
       .map(r => ({
         sourceNode: nodeMap.get(r.source),
@@ -123,6 +150,11 @@ const IntelligenceGraph = ({ data }) => {
     if (t === 'job') return { color: '#a855f7', bg: 'bg-purple-500' };
     if (t === 'document') return { color: '#10b981', bg: 'bg-emerald-500' };
     if (t === 'tender') return { color: '#f97316', bg: 'bg-orange-500' };
+
+    if (t === 'domain') return { color: '#0ea5e9', bg: 'bg-sky-500' };
+    if (t === 'ipaddress') return { color: '#f43f5e', bg: 'bg-rose-500' };
+    if (t === 'technology') return { color: '#8b5cf6', bg: 'bg-violet-500' };
+
     return { color: '#64748b', bg: 'bg-slate-500' };
   };
 
@@ -173,6 +205,27 @@ const IntelligenceGraph = ({ data }) => {
           </div>
         )}
 
+
+        {type === 'domain' && (
+          <div className="text-sm text-slate-300 space-y-1 mt-2">
+            {attrs.registrar && <p><span className="text-slate-500">Registrar:</span> {attrs.registrar}</p>}
+            {attrs.domain_status && <p><span className="text-slate-500">Status:</span> {attrs.domain_status}</p>}
+          </div>
+        )}
+
+        {type === 'ipaddress' && (
+          <div className="text-sm text-slate-300 space-y-1 mt-2">
+            {attrs.network_organization && <p><span className="text-slate-500">Organization:</span> {attrs.network_organization}</p>}
+            {attrs.country && <p><span className="text-slate-500">Country:</span> {attrs.country}</p>}
+          </div>
+        )}
+
+        {type === 'technology' && (
+          <div className="text-sm text-slate-300 space-y-1 mt-2">
+            <p><span className="text-slate-500">Detected Technology</span></p>
+          </div>
+        )}
+
         {type === 'tender' && (
           <div className="text-sm text-slate-300 space-y-1 mt-2">
             {attrs.issuing_authority && <p><span className="text-slate-500">Authority:</span> {attrs.issuing_authority}</p>}
@@ -191,7 +244,7 @@ const IntelligenceGraph = ({ data }) => {
       <div className="p-4 border-b border-slate-700 flex flex-wrap gap-2 items-center justify-between">
         <h3 className="text-lg font-bold text-white">Intelligence Graph</h3>
         <div className="flex gap-2">
-          {['All', 'News', 'Jobs', 'Documents', 'Tenders'].map(f => (
+          {['All', 'News', 'Jobs', 'Documents', 'Tenders', 'Infrastructure'].map(f => (
             <button
               key={f}
               onClick={() => { setFilter(f); setSelectedNode(null); }}
@@ -204,7 +257,7 @@ const IntelligenceGraph = ({ data }) => {
       </div>
 
       <div className="flex flex-col md:flex-row">
-        <div className="flex-1 relative bg-slate-900/50 min-h-[400px]">
+        <div className="flex-1 relative bg-slate-900/50 min-h-[500px]">
           <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-full">
             {edges.map((edge, idx) => {
               const mx = (edge.sourceNode.x + edge.targetNode.x) / 2;
@@ -222,33 +275,33 @@ const IntelligenceGraph = ({ data }) => {
                 </g>
               );
             })}
-            
+
             {nodes.map(node => {
               const isSelected = selectedNode?.id === node.id;
               return (
-                <g 
-                  key={node.id} 
-                  transform={`translate(${node.x}, ${node.y})`} 
+                <g
+                  key={node.id}
+                  transform={`translate(${node.x}, ${node.y})`}
                   onClick={() => handleNodeClick(node)}
                   className="cursor-pointer"
                 >
-                  <circle 
-                    r={node.isRoot ? 35 : 20} 
-                    fill={node.isRoot ? '#059669' : '#1e293b'} 
+                  <circle
+                    r={node.isRoot ? 35 : 20}
+                    fill={node.isRoot ? '#059669' : '#1e293b'}
                     stroke={isSelected ? '#34d399' : node.isRoot ? '#34d399' : '#475569'}
                     strokeWidth={isSelected ? 3 : 2}
                     className="transition-all duration-200"
                   />
-                  
+
                   {!node.isRoot && (
                     <circle r="6" cy="-20" fill={getBadgeColor(node.type).color} />
                   )}
 
-                  <text 
-                    y={node.isRoot ? 0 : 32} 
-                    textAnchor="middle" 
-                    fill="#e2e8f0" 
-                    fontSize={node.isRoot ? '12' : '10'} 
+                  <text
+                    y={node.isRoot ? 0 : 32}
+                    textAnchor="middle"
+                    fill="#e2e8f0"
+                    fontSize={node.isRoot ? '12' : '10'}
                     fontWeight={node.isRoot ? 'bold' : 'normal'}
                     className="pointer-events-none"
                     dy={node.isRoot ? "4" : "0"}
@@ -259,7 +312,7 @@ const IntelligenceGraph = ({ data }) => {
               );
             })}
           </svg>
-          
+
           <div className="absolute bottom-3 left-4 text-xs text-slate-500">
             {renderedCount < totalConnected ? `Showing ${renderedCount} of ${totalConnected} connected items` : `Showing all ${totalConnected} connected items`}
           </div>
