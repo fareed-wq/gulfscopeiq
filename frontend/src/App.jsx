@@ -1,4 +1,6 @@
 import { useState, useEffect } from 'react'
+import IntelligenceGraph from './components/IntelligenceGraph'
+
 
 function App() {
   const [apiStatus, setApiStatus] = useState('Checking...')
@@ -331,6 +333,11 @@ function App() {
             </div>
           </div>
         )}
+
+        {/* Intelligence Graph */}
+        <div className="mt-8">
+          <IntelligenceGraph data={intelResult} />
+        </div>
 
         <div className="space-y-3">
           <h3 className="text-lg font-semibold text-white">Company Overview</h3>
