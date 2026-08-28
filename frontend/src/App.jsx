@@ -540,9 +540,7 @@ function App() {
     )
   }
 
-  const renderCompanyContent = () => {
-    if (loading) {
-      const renderJobContent = () => {
+  const renderJobContent = () => {
     if (jobLoading) {
       return (
         <div className="flex flex-col items-center justify-center py-20 text-slate-400">
@@ -645,8 +643,10 @@ function App() {
       </div>
     )
   }
+  const renderCompanyContent = () => {
+    if (loading) {
 
-  return (
+      return (
         <div className="flex flex-col items-center justify-center p-12 space-y-4">
           <div className="w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
           <div className="text-slate-400 font-medium">Gathering intelligence...</div>
