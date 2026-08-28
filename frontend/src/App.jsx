@@ -4,6 +4,14 @@ function App() {
   const [apiStatus, setApiStatus] = useState('Checking...')
   const [activeTab, setActiveTab] = useState('company') // 'company' or 'tender'
 
+  // Intelligence State
+  const [intelCompanyName, setIntelCompanyName] = useState('')
+  const [intelCountry, setIntelCountry] = useState('SA')
+  const [intelQuery, setIntelQuery] = useState('')
+  const [intelLoading, setIntelLoading] = useState(false)
+  const [intelResult, setIntelResult] = useState(null)
+  const [intelError, setIntelError] = useState(null)
+
   // Company State
   const [companyName, setCompanyName] = useState('')
   const [website, setWebsite] = useState('')
@@ -42,6 +50,39 @@ function App() {
       .then(data => setApiStatus(data.status === 'ok' ? 'Online' : 'Offline'))
       .catch(() => setApiStatus('Offline'))
   }, [])
+
+  const handleIntelSearch = async (e) => {
+    e.preventDefault()
+    if (!intelCompanyName.trim()) return
+
+    setIntelLoading(true)
+    setIntelError(null)
+    setIntelResult(null)
+
+    try {
+      const payload = {
+        company_name: intelCompanyName.trim(),
+        country_code: intelCountry,
+        query: intelQuery.trim() ? intelQuery.trim() : null
+      }
+
+      const res = await fetch('/api/intelligence/profile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      })
+
+      const data = await res.json()
+      if (!res.ok) {
+        throw new Error(data.detail || data.error || 'Request failed')
+      }
+      setIntelResult(data)
+    } catch (err) {
+      setIntelError(err.message)
+    } finally {
+      setIntelLoading(false)
+    }
+  }
 
   const handleInvestigate = async (e) => {
     e.preventDefault()
@@ -189,6 +230,222 @@ function App() {
     } finally {
       setJobLoading(false)
     }
+  }
+
+  const renderIntelligenceContent = () => {
+    if (intelLoading) {
+      return (
+        <div className="flex flex-col items-center justify-center h-64 space-y-4">
+          <div className="w-8 h-8 border-4 border-emerald-500/30 border-t-emerald-500 rounded-full animate-spin"></div>
+          <p className="text-slate-400 font-medium">Generating Unified Profile...</p>
+        </div>
+      )
+    }
+
+    if (intelError) {
+      return (
+        <div className="bg-rose-500/10 border border-rose-500/20 rounded-xl p-6 flex flex-col items-center justify-center space-y-3">
+          <svg className="w-10 h-10 text-rose-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          </svg>
+          <p className="text-rose-400 font-medium text-center">{intelError}</p>
+        </div>
+      )
+    }
+
+    if (!intelResult) {
+      return (
+        <div className="flex flex-col items-center justify-center h-64 space-y-4 text-slate-500">
+          <svg className="w-12 h-12 text-slate-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 002-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+          </svg>
+          <p className="text-lg">Build a unified profile to see intelligence.</p>
+        </div>
+      )
+    }
+
+    const getEmptyStateText = (status) => {
+       if (status === 'skipped') return "Skipped because no topic keyword was provided."
+       if (status === 'foundation') return "Automated collection is not available for this source yet."
+       if (status === 'error') return "Module temporarily unavailable."
+       return "No matching results found."
+    }
+
+    const { status, company_name, country_code, query, modules, organization_clusters, company, jobs, documents, tenders, entities } = intelResult
+    const newsEntities = (entities || []).filter(e => e.type === 'news_article')
+    const primaryCluster = (organization_clusters && organization_clusters.length > 0) ? organization_clusters[0] : null
+
+    return (
+      <div className="space-y-8 animate-in fade-in duration-500">
+        <div className="bg-slate-800 rounded-xl p-6 border border-slate-700">
+          <h2 className="text-xl font-bold text-white mb-4">Intelligence Summary</h2>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div><p className="text-xs text-slate-400">Company</p><p className="font-medium text-white">{company_name}</p></div>
+            <div><p className="text-xs text-slate-400">Country</p><p className="font-medium text-white">{country_code}</p></div>
+            <div><p className="text-xs text-slate-400">Keyword</p><p className="font-medium text-white">{query || 'None'}</p></div>
+            <div>
+               <p className="text-xs text-slate-400">Status</p>
+               <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${status === 'completed' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-yellow-500/10 text-yellow-400'}`}>{status}</span>
+            </div>
+            {primaryCluster && (
+              <div className="col-span-2 md:col-span-4 mt-2 border-t border-slate-700/50 pt-3">
+                 <p className="text-xs text-slate-400">Canonical Organization</p>
+                 <p className="font-medium text-emerald-400">{primaryCluster.organization_name}</p>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+           {['company', 'news', 'jobs', 'documents', 'tenders'].map(mod => {
+             const mData = modules?.[mod]
+             if(!mData) return null
+             return (
+               <div key={mod} className="bg-slate-800/50 rounded-lg p-3 border border-slate-700 flex flex-col items-center text-center">
+                 <p className="text-xs font-medium text-slate-400 uppercase">{mod}</p>
+                 <p className={`mt-1 text-sm font-semibold ${mData.status === 'collected' ? 'text-emerald-400' : mData.status === 'error' ? 'text-rose-400' : 'text-slate-300'}`}>{mData.status}</p>
+                 <p className="text-lg font-bold text-white mt-1">{mData.count}</p>
+               </div>
+             )
+           })}
+        </div>
+
+        {primaryCluster && (
+          <div className="bg-slate-800 rounded-xl p-6 border border-emerald-500/30">
+            <h3 className="text-lg font-semibold text-white mb-3">Intelligence Connections</h3>
+            <p className="text-emerald-400 font-bold text-xl mb-3">{primaryCluster.organization_name}</p>
+            <div className="space-y-2">
+              <div className="flex gap-4 text-sm text-slate-300">
+                <p>News: <span className="font-semibold text-white">{primaryCluster.entity_type_counts?.news_article || 0}</span></p>
+                <p>Documents: <span className="font-semibold text-white">{primaryCluster.entity_type_counts?.document || 0}</span></p>
+                <p>Jobs: <span className="font-semibold text-white">{primaryCluster.entity_type_counts?.job || 0}</span></p>
+              </div>
+              <div className="pt-2 border-t border-slate-700/50">
+                <p className="text-xs text-slate-400 mb-2">Relationship types:</p>
+                <div className="flex flex-wrap gap-2">
+                  {(primaryCluster.relationship_types || []).map(rt => (
+                    <span key={rt} className="px-2 py-1 bg-slate-700/50 text-slate-300 rounded text-xs">{rt}</span>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div className="space-y-3">
+          <h3 className="text-lg font-semibold text-white">Company Overview</h3>
+          {company ? (
+            <div className="bg-slate-800 p-5 rounded-lg border border-slate-700">
+               <p className="font-bold text-white text-lg">{company.name}</p>
+               {company.normalized_name && <p className="text-sm text-slate-400">Normalized: {company.normalized_name}</p>}
+               {company.registration_number && <p className="text-sm text-slate-400 mt-1">Registry ID: {company.registration_number}</p>}
+               <p className="text-sm text-slate-300 mt-2">Country: {company.country}</p>
+               {company.website && <p className="text-sm text-emerald-400 mt-1"><a href={company.website} target="_blank" rel="noreferrer">{company.website}</a></p>}
+               {company.attributes?.discovery?.website && (
+                  <p className="text-xs text-slate-400 mt-1">Discovered: <a href={company.attributes?.discovery?.website} className="text-slate-300 hover:text-emerald-400" target="_blank" rel="noreferrer">{company.attributes?.discovery?.website}</a> (Confidence: {company.attributes?.discovery?.confidence})</p>
+               )}
+            </div>
+          ) : (
+            <p className="text-slate-500 italic text-sm">{getEmptyStateText(modules?.company?.status)}</p>
+          )}
+        </div>
+
+        <div className="space-y-3">
+          <h3 className="text-lg font-semibold text-white">News</h3>
+          {newsEntities.length > 0 ? (
+            <div className="grid gap-3">
+               {newsEntities.map((n, i) => (
+                 <div key={i} className="bg-slate-800 p-4 rounded-lg border border-slate-700">
+                   <p className="font-medium text-white">{n.label}</p>
+                   <div className="flex gap-4 mt-2 text-xs text-slate-400">
+                     {n.attributes?.publisher && <p>Publisher: {n.attributes.publisher}</p>}
+                     {n.attributes?.published_at && <p>{n.attributes.published_at}</p>}
+                   </div>
+                   {n.attributes?.url && <a href={n.attributes.url} target="_blank" rel="noreferrer" className="text-xs text-emerald-400 hover:underline mt-2 block">Read Article</a>}
+                 </div>
+               ))}
+            </div>
+          ) : (
+            <p className="text-slate-500 italic text-sm">{getEmptyStateText(modules?.news?.status)}</p>
+          )}
+        </div>
+
+        <div className="space-y-3">
+          <h3 className="text-lg font-semibold text-white">Jobs</h3>
+          {jobs && jobs.length > 0 ? (
+            <div className="grid gap-3">
+               {jobs.map((j, i) => (
+                 <div key={i} className="bg-slate-800 p-4 rounded-lg border border-slate-700">
+                   <p className="font-medium text-emerald-400">{j.title}</p>
+                   <p className="text-sm text-slate-300 mt-1">{j.company} • {j.location}</p>
+                   <div className="flex flex-wrap gap-x-4 mt-2 text-xs text-slate-400">
+                     {j.department && <p>Dept: {j.department}</p>}
+                     {j.facility && <p>Facility: {j.facility}</p>}
+                     {j.published_at && <p>Posted: {j.published_at}</p>}
+                   </div>
+                   {j.source_url && <a href={j.source_url} target="_blank" rel="noreferrer" className="text-xs text-blue-400 hover:underline mt-2 block">Source Link</a>}
+                 </div>
+               ))}
+            </div>
+          ) : (
+            <p className="text-slate-500 italic text-sm">{getEmptyStateText(modules?.jobs?.status)}</p>
+          )}
+        </div>
+
+        <div className="space-y-3">
+          <h3 className="text-lg font-semibold text-white">Documents</h3>
+          {documents && documents.length > 0 ? (
+            <div className="grid gap-3">
+               {documents.map((d, i) => (
+                 <div key={i} className="bg-slate-800 p-4 rounded-lg border border-slate-700 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                   <div>
+                     <p className="font-medium text-emerald-400">{d.title}</p>
+                     <p className="text-sm text-slate-300">{d.organization}</p>
+                     <div className="flex gap-3 mt-1 text-xs text-slate-500">
+                       {d.document_type && <span className="px-2 py-0.5 rounded-full bg-slate-700/50">{d.document_type}</span>}
+                       {d.mime_type && <span>{d.mime_type}</span>}
+                       {d.published_at && <span>{d.published_at}</span>}
+                     </div>
+                   </div>
+                   <div className="flex items-center gap-3">
+                     {d.source_url && <a href={d.source_url} target="_blank" rel="noreferrer" className="text-xs font-medium text-slate-300 hover:text-white bg-slate-700 hover:bg-slate-600 px-3 py-1.5 rounded transition-colors">Source Page</a>}
+                     {d.file_url && <a href={d.file_url} target="_blank" rel="noreferrer" className="text-xs font-medium text-emerald-500 hover:text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 px-3 py-1.5 rounded transition-colors">Open PDF</a>}
+                   </div>
+                 </div>
+               ))}
+            </div>
+          ) : (
+            <p className="text-slate-500 italic text-sm">{getEmptyStateText(modules?.documents?.status)}</p>
+          )}
+        </div>
+
+        <div className="space-y-3">
+          <h3 className="text-lg font-semibold text-white">Tenders</h3>
+          {tenders && tenders.length > 0 ? (
+            <div className="grid gap-3">
+               {tenders.map((t, i) => (
+                 <div key={i} className="bg-slate-800 p-4 rounded-lg border border-slate-700">
+                   <div className="flex justify-between items-start mb-2">
+                     <h3 className="font-medium text-emerald-400 leading-snug">{t.title}</h3>
+                     {t.status && <span className="text-xs font-medium px-2 py-1 bg-slate-700 rounded text-slate-300 ml-3 shrink-0">{t.status}</span>}
+                   </div>
+                   {t.issuing_authority && <p className="text-sm text-slate-300">{t.issuing_authority}</p>}
+                   <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-xs text-slate-400">
+                     {t.reference_number && <span>Ref: {t.reference_number}</span>}
+                     {t.published_at && <span>Published: {t.published_at}</span>}
+                     {t.deadline && <span>Deadline: {t.deadline}</span>}
+                   </div>
+                   {t.source_url && <a href={t.source_url} target="_blank" rel="noreferrer" className="text-xs font-medium text-slate-300 hover:text-emerald-400 transition-colors mt-3 inline-block">Source URL ↗</a>}
+                 </div>
+               ))}
+            </div>
+          ) : (
+            <p className="text-slate-500 italic text-sm">{getEmptyStateText(modules?.tenders?.status)}</p>
+          )}
+        </div>
+
+      </div>
+    )
   }
 
   const renderCompanyContent = () => {
@@ -851,7 +1108,51 @@ function App() {
           </button>
         </div>
 
-        {activeTab === 'document' ? (
+        {activeTab === 'intelligence' ? (
+          <form onSubmit={handleIntelSearch} className="space-y-4 flex-1">
+            <div>
+              <label htmlFor="intelCompanyName" className="block text-sm font-medium text-slate-300 mb-1">Company Name *</label>
+              <input
+                id="intelCompanyName"
+                type="text"
+                required
+                placeholder="e.g. SABIC, Saudi Aramco"
+                className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2.5 text-sm text-white focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 outline-none transition-all placeholder:text-slate-600"
+                value={intelCompanyName}
+                onChange={e => setIntelCompanyName(e.target.value)}
+              />
+            </div>
+            <div>
+              <label htmlFor="intelCountry" className="block text-sm font-medium text-slate-300 mb-1">Country</label>
+              <select
+                id="intelCountry"
+                className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2.5 text-sm text-white focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 outline-none transition-all"
+                value={intelCountry}
+                onChange={e => setIntelCountry(e.target.value)}
+              >
+                <option value="SA">Saudi Arabia (SA)</option>
+              </select>
+            </div>
+            <div>
+              <label htmlFor="intelQuery" className="block text-sm font-medium text-slate-300 mb-1">Topic / Keyword <span className="text-slate-500 font-normal">(optional)</span></label>
+              <input
+                id="intelQuery"
+                type="text"
+                placeholder="e.g. security, engineer, report"
+                className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2.5 text-sm text-white focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 outline-none transition-all placeholder:text-slate-600"
+                value={intelQuery}
+                onChange={e => setIntelQuery(e.target.value)}
+              />
+            </div>
+            <button
+              type="submit"
+              disabled={intelLoading || !intelCompanyName.trim()}
+              className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-700 disabled:text-slate-500 text-white font-medium py-2.5 rounded-lg transition-colors focus:ring-4 focus:ring-emerald-500/20"
+            >
+              {intelLoading ? 'Building Profile...' : 'Build Unified Profile'}
+            </button>
+          </form>
+        ) : activeTab === 'document' ? (
           <form onSubmit={handleDocumentSearch} className="space-y-4 flex-1">
             <div>
               <label htmlFor="docQuery" className="block text-sm font-medium text-slate-300 mb-1">Keyword *</label>
@@ -1054,7 +1355,7 @@ function App() {
       {/* Main Content / Right column */}
       <div className="flex-1 p-6 md:p-8 lg:p-12 overflow-y-auto">
         <div className="max-w-4xl mx-auto">
-          {activeTab === 'document' ? renderDocumentContent() : activeTab === 'job' ? renderJobContent() : activeTab === 'company' ? renderCompanyContent() : renderTenderContent()}
+          {activeTab === 'intelligence' ? renderIntelligenceContent() : activeTab === 'document' ? renderDocumentContent() : activeTab === 'job' ? renderJobContent() : activeTab === 'company' ? renderCompanyContent() : renderTenderContent()}
         </div>
       </div>
     </div>
