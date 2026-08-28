@@ -31,7 +31,7 @@ def correlate_intelligence(
     non_org_entities: List[IntelligenceEntity] = []
     
     for entity in entities:
-        if entity.type == "Organization":
+        if entity.type.lower() in ("organization", "company"):
             norm_name = normalize_organization_name(entity.label)
             org_groups[norm_name].append(entity)
         else:

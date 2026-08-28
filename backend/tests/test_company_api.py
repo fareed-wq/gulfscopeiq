@@ -17,7 +17,9 @@ def test_company_investigate_valid():
             assert data["status"] == "foundation"
             assert data["company"]["name"] == "Example Company"
             assert data["company"]["normalized_name"] == "example company"
-            assert data["entities"] == []
+            assert len(data["entities"]) == 1
+            assert data["entities"][0]["type"] == "Organization"
+            assert data["entities"][0]["id"] == "example company"
             assert data["relationships"] == []
 
 def test_company_investigate_whitespace_normalized():

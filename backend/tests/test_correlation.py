@@ -95,7 +95,7 @@ def test_relationship_endpoints_rewired_correctly():
     assert len(entities) == 2  # 1 org, 1 job
     assert len(rels) == 1
     
-    canonical_org = [e for e in entities if e.type == "Organization"][0]
+    canonical_org = [e for e in entities if e.type.lower() in ("organization", "company")][0]
     
     assert rels[0].source == canonical_org.id
     assert rels[0].target == "job1"
@@ -162,3 +162,17 @@ def test_empty_input():
     assert len(rels) == 0
     assert len(clusters) == 0
     assert stats["input_entities"] == 0
+
+
+def test_cross_module_org_types_correlate():
+    e1 = IntelligenceEntity(id="1", type="Organization", label="SABIC")
+    e2 = IntelligenceEntity(id="2", type="organization", label="sabic")
+    e3 = IntelligenceEntity(id="3", type="Company", label="SABIC")
+    e4 = IntelligenceEntity(id="4", type="company", label="SABIC")
+    
+    entities, rels, clusters, stats = correlate_intelligence([e1, e2, e3, e4], [])
+    
+    assert len(entities) == 1
+    assert entities[0].type == "Organization"  # Takes the first one's type
+    assert len(clusters) == 1
+    assert stats["canonical_entities"] == 1
