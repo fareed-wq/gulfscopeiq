@@ -1,4 +1,4 @@
-﻿from enum import Enum
+from enum import Enum
 from typing import List, Dict
 from pydantic import BaseModel, Field
 
@@ -59,7 +59,18 @@ GCC_REGISTRY: Dict[str, CountryRegistryEntry] = {
     "AE": CountryRegistryEntry(
         country_code="AE",
         country_name="United Arab Emirates",
-        tenders=SourceStatus.unavailable
+        tenders=SourceStatus.unavailable,
+        organizations=[
+            OrganizationRegistryEntry(
+                organization_id="emirates_nbd",
+                organization_name="Emirates NBD",
+                aliases=["emirates nbd", "enbd"],
+                capabilities=OrganizationCapabilities(
+                    documents=SourceStatus.configured,
+                    jobs=SourceStatus.foundation
+                )
+            )
+        ]
     ),
     "QA": CountryRegistryEntry(
         country_code="QA",

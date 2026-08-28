@@ -1,4 +1,4 @@
-﻿from fastapi.testclient import TestClient
+from fastapi.testclient import TestClient
 from app.main import app
 
 client = TestClient(app)
@@ -49,8 +49,12 @@ def test_get_gcc_registry():
     assert stc["capabilities"]["jobs"] == "configured"
     assert stc["capabilities"]["documents"] == "foundation" # unsupported capabilities not falsely configured
     
-    # AE has no orgs
-    assert len(data["AE"]["organizations"]) == 0
+    # AE orgs check
+    assert len(data["AE"]["organizations"]) == 1
+    enbd = data["AE"]["organizations"][0]
+    assert enbd["organization_id"] == "emirates_nbd"
+    assert enbd["capabilities"]["documents"] == "configured"
+    assert enbd["capabilities"]["jobs"] == "foundation"
     
     # no collector URLs exposed
     assert "https" not in response.text

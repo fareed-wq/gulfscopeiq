@@ -141,6 +141,41 @@ def test_search_corporate_ir_documents_size_limit(mock_httpx_client):
         assert len(docs) == 0
     asyncio.run(run_test())
 
+def test_search_corporate_ir_documents_emirates_nbd(mock_httpx_client):
+    mock_client_class, mock_instance = mock_httpx_client
+    async def run_test():
+        html = b"""
+        <html>
+            <body>
+                <a href="/-/media/enbd/files/esg_report_2024.pdf">Sustainability 2024</a>
+                <a href="https://cdn.emiratesnbd.com/en/assets/ir/annual_report_2023.pdf">Annual Report 2023</a>
+                <a href="https://cdn.emiratesnbd.com/en/assets/ir/financial_statements_2023.pdf">Financial Statements</a>
+                <a href="https://cdn.emiratesnbd.com/en/assets/ir/presentation_2023.pdf">Presentation</a>
+                <a href="/unknown.pdf">Other document</a>
+                <a href="https://untrusted.com/test.pdf">Untrusted</a>
+            </body>
+        </html>
+        """
+        mock_instance.stream.return_value = MockStreamContextManager([MockStreamResponse(200, html)])
+
+        req = DocumentSearchRequest(query="Emirates NBD", country_code="AE")
+        docs, ents, rels = await search_corporate_ir_documents(req)
+
+        assert len(docs) == 5
+        assert docs[0].title == "Sustainability 2024"
+        assert docs[0].document_type == "ESG Report"
+        assert docs[1].document_type == "Annual Report"
+        assert docs[2].document_type == "Financial Statement"
+        assert docs[3].document_type == "Investor Presentation"
+        assert docs[4].document_type is None
+
+        file_urls = [d.file_url for d in docs]
+        assert "https://www.emiratesnbd.com/-/media/enbd/files/esg_report_2024.pdf" in file_urls
+        assert "https://cdn.emiratesnbd.com/en/assets/ir/annual_report_2023.pdf" in file_urls
+        assert "https://untrusted.com/test.pdf" not in file_urls
+
+    asyncio.run(run_test())
+
 def test_deterministic_id():
     id1 = _stable_id("https://example.com/test.pdf")
     id2 = _stable_id("https://example.com/test.pdf")

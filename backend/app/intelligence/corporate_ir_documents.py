@@ -34,6 +34,21 @@ CORPORATE_SOURCES = [
             "sustainability": "ESG Report",
             "esg": "ESG Report"
         }
+    ),
+    SourceConfig(
+        organization="Emirates NBD",
+        aliases=["emirates nbd", "enbd"],
+        country_code="AE",
+        index_url="https://www.emiratesnbd.com/en/investor-relations",
+        allowed_hosts=["www.emiratesnbd.com", "cdn.emiratesnbd.com"],
+        category_mapping={
+            "annual report": "Annual Report",
+            "integrated report": "Integrated Report",
+            "financial statement": "Financial Statement",
+            "sustainability": "ESG Report",
+            "esg": "ESG Report",
+            "presentation": "Investor Presentation"
+        }
     )
 ]
 
