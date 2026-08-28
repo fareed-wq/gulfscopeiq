@@ -16,6 +16,7 @@ from app.models.job import Job
 
 def _make_row(title="Engineer", link="/job/123", loc="SA", dept="IT", fac="100", date="Aug 1, 2026"):
     return f"""
+    <div class="search-page">
     <tr class="data-row">
         <td><a class="jobTitle-link" href="{link}">{title}</a></td>
         <td><span class="jobLocation">{loc}</span></td>
@@ -23,6 +24,7 @@ def _make_row(title="Engineer", link="/job/123", loc="SA", dept="IT", fac="100",
         <td><span class="jobFacility">{fac}</span></td>
         <td><span class="jobDate">{date}</span></td>
     </tr>
+    </div>
     """
 
 def test_parse_sf_row():
@@ -37,9 +39,9 @@ def test_parse_sf_row():
     assert rows[0]["published_at"] == "Aug 1, 2026"
 
 def test_parse_missing_fields():
-    html = """<tr class="data-row">
+    html = """<div class="search-page"><tr class="data-row">
         <td><span class="jobTitle">Fallback Title</span></td>
-    </tr>"""
+    </tr></div>"""
     rows = _parse_sf_jobs_html(html, "https://careers.test.com")
     assert len(rows) == 1
     assert rows[0]["title"] == "Fallback Title"
@@ -202,7 +204,7 @@ def test_max_30_limit():
 def test_deterministic_ids():
     from app.intelligence.successfactors_jobs import _stable_id
     # We test that production _stable_id logic produces exactly the same ID
-    
+
     id1 = _stable_id('job', 'https://example.com/job/1')
     id2 = _stable_id('job', 'https://example.com/job/1')
     assert id1 == id2

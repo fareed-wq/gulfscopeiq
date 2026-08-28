@@ -6,7 +6,7 @@ client = TestClient(app)
 
 @patch('app.api.jobs.search_successfactors_jobs', new_callable=AsyncMock)
 def test_jobs_search_valid(mock_search):
-    mock_search.return_value = ([], [], [])
+    mock_search.return_value = ([], [], [], 'collected')
 
     response = client.post("/api/jobs/search", json={
         "query": "cybersecurity",
@@ -80,9 +80,7 @@ from app.models.job import Job
 
 @patch('app.api.jobs.search_successfactors_jobs', new_callable=AsyncMock)
 def test_jobs_search_sa_successfactors(mock_search):
-    mock_search.return_value = ([
-        Job(title='SF Job 1', country_code='SA', company='STC')
-    ], [], [])
+    mock_search.return_value = ([Job(title='SF Job 1', country_code='SA', company='STC')], [], [], 'collected')
 
     response = client.post('/api/jobs/search', json={
         'query': 'engineer',

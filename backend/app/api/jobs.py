@@ -9,7 +9,7 @@ async def search_jobs(request: JobSearchRequest):
     if request.country_code == "SA":
         matched = _match_sources("SA", request.company)
         if matched:
-            jobs, entities, relations = await search_successfactors_jobs(
+            jobs, entities, relations, status = await search_successfactors_jobs(
                 query=request.query,
                 country_code="SA",
                 company=request.company
@@ -18,7 +18,7 @@ async def search_jobs(request: JobSearchRequest):
                 query=request.query,
                 country_code="SA",
                 company=request.company,
-                status="collected",
+                status=status,
                 jobs=jobs,
                 entities=entities,
                 relationships=relations
