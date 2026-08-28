@@ -46,6 +46,28 @@ function App() {
   const [jobResult, setJobResult] = useState(null)
   const [jobError, setJobError] = useState(null)
 
+  const [gccRegistry, setGccRegistry] = useState(null)
+  const [registryLoading, setRegistryLoading] = useState(true)
+  const [registryError, setRegistryError] = useState(null)
+
+  useEffect(() => {
+    fetch('/api/registry/gcc')
+      .then(res => {
+        if (!res.ok) throw new Error('Source configuration is temporarily unavailable.')
+        const isJson = res.headers.get('content-type')?.includes('application/json')
+        if (!isJson) throw new Error('Source configuration is temporarily unavailable.')
+        return res.json()
+      })
+      .then(data => {
+        setGccRegistry(data)
+        setRegistryLoading(false)
+      })
+      .catch(err => {
+        setRegistryError("Source configuration is temporarily unavailable.")
+        setRegistryLoading(false)
+      })
+  }, [])
+
   useEffect(() => {
     fetch('/api/health')
       .then(res => res.json())
@@ -1240,11 +1262,18 @@ function App() {
               <label htmlFor="intelCountry" className="block text-sm font-medium text-slate-300 mb-1">Country</label>
               <select
                 id="intelCountry"
-                className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2.5 text-sm text-white focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 outline-none transition-all"
+                className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2.5 text-sm text-white focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 outline-none transition-all disabled:opacity-50"
                 value={intelCountry}
                 onChange={e => setIntelCountry(e.target.value)}
+                disabled={registryLoading || !!registryError}
               >
-                <option value="SA">Saudi Arabia (SA)</option>
+                {registryError && <option value="SA">{registryError}</option>}
+                {registryLoading && !registryError && <option value="SA">Loading configuration...</option>}
+                {!registryLoading && !registryError && gccRegistry && Object.values(gccRegistry).map(c => (
+                  <option key={c.country_code} value={c.country_code}>
+                    {c.country_name} ({c.country_code})
+                  </option>
+                ))}
               </select>
             </div>
             <div>
@@ -1285,11 +1314,24 @@ function App() {
               <label htmlFor="docCountry" className="block text-sm font-medium text-slate-300 mb-1">Country</label>
               <select
                 id="docCountry"
-                className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2.5 text-sm text-white focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 outline-none transition-all"
+                className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2.5 text-sm text-white focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 outline-none transition-all disabled:opacity-50"
                 value={docCountry}
-                onChange={e => setDocCountry(e.target.value)}
+                onChange={e => {
+                  setDocCountry(e.target.value)
+                  setDocOrg('')
+                }}
+                disabled={registryLoading || !!registryError}
               >
-                <option value="SA">Saudi Arabia (SA)</option>
+                {registryError && <option value="SA">{registryError}</option>}
+                {registryLoading && !registryError && <option value="SA">Loading configuration...</option>}
+                {!registryLoading && !registryError && gccRegistry && Object.values(gccRegistry)
+                  .filter(c => c.organizations.some(o => o.capabilities.documents === 'configured'))
+                  .map(c => (
+                    <option key={c.country_code} value={c.country_code}>
+                      {c.country_name} ({c.country_code})
+                    </option>
+                  ))
+                }
               </select>
             </div>
 
@@ -1297,12 +1339,20 @@ function App() {
               <label htmlFor="docOrg" className="block text-sm font-medium text-slate-300 mb-1">Organization</label>
               <select
                 id="docOrg"
-                className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2.5 text-sm text-white focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 outline-none transition-all"
+                className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2.5 text-sm text-white focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 outline-none transition-all disabled:opacity-50"
                 value={docOrg}
                 onChange={e => setDocOrg(e.target.value)}
+                disabled={registryLoading || !!registryError}
               >
                 <option value="">All Configured Organizations</option>
-                <option value="SABIC">SABIC</option>
+                {!registryLoading && !registryError && gccRegistry && gccRegistry[docCountry]?.organizations
+                  .filter(o => o.capabilities.documents === 'configured')
+                  .map(o => (
+                    <option key={o.organization_id} value={o.organization_name}>
+                      {o.organization_name}
+                    </option>
+                  ))
+                }
               </select>
             </div>
 
@@ -1349,11 +1399,24 @@ function App() {
               <label htmlFor="jobCountry" className="block text-sm font-medium text-slate-300 mb-1">Country</label>
               <select
                 id="jobCountry"
-                className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2.5 text-sm text-white focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 outline-none transition-all"
+                className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2.5 text-sm text-white focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 outline-none transition-all disabled:opacity-50"
                 value={jobCountry}
-                onChange={e => setJobCountry(e.target.value)}
+                onChange={e => {
+                  setJobCountry(e.target.value)
+                  setJobCompany('')
+                }}
+                disabled={registryLoading || !!registryError}
               >
-                <option value="SA">Saudi Arabia (SA)</option>
+                {registryError && <option value="SA">{registryError}</option>}
+                {registryLoading && !registryError && <option value="SA">Loading configuration...</option>}
+                {!registryLoading && !registryError && gccRegistry && Object.values(gccRegistry)
+                  .filter(c => c.organizations.some(o => o.capabilities.jobs === 'configured'))
+                  .map(c => (
+                    <option key={c.country_code} value={c.country_code}>
+                      {c.country_name} ({c.country_code})
+                    </option>
+                  ))
+                }
               </select>
             </div>
 
@@ -1361,14 +1424,20 @@ function App() {
               <label htmlFor="jobCompany" className="block text-sm font-medium text-slate-300 mb-1">Employer</label>
               <select
                 id="jobCompany"
-                className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2.5 text-sm text-white focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 outline-none transition-all"
+                className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2.5 text-sm text-white focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 outline-none transition-all disabled:opacity-50"
                 value={jobCompany}
                 onChange={e => setJobCompany(e.target.value)}
+                disabled={registryLoading || !!registryError}
               >
                 <option value="">All Configured Employers</option>
-                <option value="Saudi Aramco">Saudi Aramco</option>
-                <option value="STC">STC</option>
-                <option value="SABIC">SABIC</option>
+                {!registryLoading && !registryError && gccRegistry && gccRegistry[jobCountry]?.organizations
+                  .filter(o => o.capabilities.jobs === 'configured')
+                  .map(o => (
+                    <option key={o.organization_id} value={o.organization_name}>
+                      {o.organization_name}
+                    </option>
+                  ))
+                }
               </select>
             </div>
 
