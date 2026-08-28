@@ -137,7 +137,7 @@ def test_search_all_sa():
         "sabic.com": sabic
     })
 
-    jobs, ents, rels = asyncio.run(search_successfactors_jobs("engineer", "SA", None, client=client))
+    jobs, ents, rels, status = asyncio.run(search_successfactors_jobs("engineer", "SA", None, client=client))
 
     assert len(jobs) == 3
     assert client.call_count == 3
@@ -155,7 +155,7 @@ def test_search_specific_company():
     stc = _make_row(title="STC Job")
     client = MockClient(text_map={"stc.com.sa": stc})
 
-    jobs, _, _ = asyncio.run(search_successfactors_jobs("engineer", "SA", "stc", client=client))
+    jobs, _, _, _ = asyncio.run(search_successfactors_jobs("engineer", "SA", "stc", client=client))
     assert len(jobs) == 1
     assert client.call_count == 1
     assert jobs[0].company == "STC"
@@ -167,7 +167,7 @@ def test_failure_isolation():
         error_map={"stc.com.sa": Exception("Network Error")}
     )
 
-    jobs, _, _ = asyncio.run(search_successfactors_jobs("engineer", "SA", None, client=client))
+    jobs, _, _, _ = asyncio.run(search_successfactors_jobs("engineer", "SA", None, client=client))
     assert len(jobs) == 1  # STC failed, but Aramco succeeded
     assert jobs[0].company == "Saudi Aramco"
 
@@ -178,7 +178,7 @@ def test_oversized_response_isolation():
         chunks_map={"stc.com.sa": [b"A" * 3 * 1024 * 1024, b"A" * 3 * 1024 * 1024]}
     )
 
-    jobs, _, _ = asyncio.run(search_successfactors_jobs("engineer", "SA", None, client=client))
+    jobs, _, _, _ = asyncio.run(search_successfactors_jobs("engineer", "SA", None, client=client))
     assert len(jobs) == 1
     assert jobs[0].company == "Saudi Aramco"
 
@@ -187,7 +187,7 @@ def test_deduplication():
     r1 = _make_row(title="Job A", link="https://careers.example.com/same")
     client = MockClient(text_map={"aramco.com": r1, "stc.com.sa": r1})
 
-    jobs, _, _ = asyncio.run(search_successfactors_jobs("engineer", "SA", None, client=client))
+    jobs, _, _, _ = asyncio.run(search_successfactors_jobs("engineer", "SA", None, client=client))
     assert len(jobs) == 1
 
 def test_max_30_limit():
@@ -197,7 +197,7 @@ def test_max_30_limit():
         "stc.com.sa": html
     })
 
-    jobs, _, _ = asyncio.run(search_successfactors_jobs("engineer", "SA", None, client=client))
+    jobs, _, _, _ = asyncio.run(search_successfactors_jobs("engineer", "SA", None, client=client))
     # 25 from Aramco + 25 from STC = 50 -> capped at 30
     assert len(jobs) == 30
 

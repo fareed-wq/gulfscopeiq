@@ -303,7 +303,7 @@ async def search_successfactors_jobs(
                 )
                 relationships.append(rel_loc)
 
-        return deduped_jobs, entities, relationships
+        return deduped_jobs, entities, relationships, status
 
     finally:
         if close_client:
