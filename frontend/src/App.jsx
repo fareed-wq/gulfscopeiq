@@ -53,6 +53,42 @@ function App() {
       .catch(() => setApiStatus('Offline'))
   }, [])
 
+  const fetchSafe = async (url, options, defaultError) => {
+    let res;
+    try {
+      res = await fetch(url, options)
+    } catch (err) {
+      throw new Error(defaultError)
+    }
+
+    const isJson = res.headers.get('content-type')?.includes('application/json')
+    let data = null
+
+    if (isJson) {
+      try {
+        data = await res.json()
+      } catch (e) {
+        throw new Error(defaultError)
+      }
+    }
+
+    if (!res.ok) {
+      if (res.status === 422 && data && Array.isArray(data.detail)) {
+        const msg = data.detail[0]?.msg
+        if (typeof msg === 'string' && msg.trim() !== '') {
+          throw new Error(msg)
+        }
+      }
+      throw new Error(defaultError)
+    }
+
+    if (!data) {
+      throw new Error(defaultError)
+    }
+
+    return data
+  }
+
   const handleIntelSearch = async (e) => {
     e.preventDefault()
     if (!intelCompanyName.trim()) return
@@ -68,16 +104,11 @@ function App() {
         query: intelQuery.trim() ? intelQuery.trim() : null
       }
 
-      const res = await fetch('/api/intelligence/profile', {
+      const data = await fetchSafe('/api/intelligence/profile', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
-      })
-
-      const data = await res.json()
-      if (!res.ok) {
-        throw new Error(data.detail || data.error || 'Request failed')
-      }
+      }, "Unified intelligence profile could not be completed.")
       setIntelResult(data)
     } catch (err) {
       setIntelError(err.message)
@@ -100,20 +131,11 @@ function App() {
         payload.website = website.trim()
       }
 
-      const res = await fetch('/api/company/investigate', {
+      const data = await fetchSafe('/api/company/investigate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
-      })
-
-      const data = await res.json()
-      if (!res.ok) {
-        throw new Error(
-          Array.isArray(data.detail)
-            ? data.detail[0].msg
-            : data.detail || 'API request failed'
-        )
-      }
+      }, "Company intelligence is temporarily unavailable.")
       setResult(data)
     } catch (err) {
       setError(err.message)
@@ -136,20 +158,11 @@ function App() {
         country_code: tenderCountry
       }
 
-      const res = await fetch('/api/tenders/search', {
+      const data = await fetchSafe('/api/tenders/search', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
-      })
-
-      const data = await res.json()
-      if (!res.ok) {
-        throw new Error(
-          Array.isArray(data.detail)
-            ? data.detail[0].msg
-            : data.detail || 'API request failed'
-        )
-      }
+      }, "Tender intelligence is temporarily unavailable.")
       setTenderResult(data)
     } catch (err) {
       setTenderError(err.message)
@@ -175,20 +188,11 @@ function App() {
         document_type: docType || null
       }
 
-      const res = await fetch('/api/documents/search', {
+      const data = await fetchSafe('/api/documents/search', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
-      })
-
-      const data = await res.json()
-      if (!res.ok) {
-        throw new Error(
-          Array.isArray(data.detail)
-            ? data.detail[0].msg
-            : data.detail || 'API request failed'
-        )
-      }
+      }, "Document intelligence is temporarily unavailable.")
       setDocResult(data)
     } catch (err) {
       setDocError(err.message)
@@ -212,20 +216,11 @@ function App() {
         company: jobCompany.trim() || null
       }
 
-      const res = await fetch('/api/jobs/search', {
+      const data = await fetchSafe('/api/jobs/search', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
-      })
-
-      const data = await res.json()
-      if (!res.ok) {
-        throw new Error(
-          Array.isArray(data.detail)
-            ? data.detail[0].msg
-            : data.detail || 'API request failed'
-        )
-      }
+      }, "Job intelligence is temporarily unavailable.")
       setJobResult(data)
     } catch (err) {
       setJobError(err.message)
