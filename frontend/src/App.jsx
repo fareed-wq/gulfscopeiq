@@ -1218,7 +1218,14 @@ function App() {
           >
             Jobs
           </button>
-        </div>
+          <button
+            onClick={() => setActiveTab('intelligence')}
+            className={`flex-1 py-1.5 text-sm font-medium rounded-md transition-colors ${
+              activeTab === 'intelligence' ? 'bg-slate-700 text-white shadow' : 'text-slate-400 hover:text-slate-300'
+            }`}
+          >
+            Intelligence
+          </button>
 
         {activeTab === 'intelligence' ? (
           <form onSubmit={handleIntelSearch} className="space-y-4 flex-1">
