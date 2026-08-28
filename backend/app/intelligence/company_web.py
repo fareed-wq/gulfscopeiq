@@ -64,7 +64,8 @@ async def fetch_website_safely(url: str) -> dict:
                     return {
                         "final_url": current_url,
                         "status_code": response.status_code,
-                        "html": body.decode("utf-8", errors="ignore")
+                        "html": body.decode("utf-8", errors="ignore"),
+                        "headers": dict(response.headers)
                     }
             except httpx.RequestError as e:
                 raise SafetyException(f"Request failed: {str(e)}")
