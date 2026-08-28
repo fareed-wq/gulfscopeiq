@@ -6,6 +6,7 @@ from app.api.tender import router as tender_router
 from app.api.jobs import router as jobs_router
 from app.api.documents import router as documents_router
 from app.api.correlation import router as correlation_router
+from app.api.intelligence_profile import router as profile_router
 
 app = FastAPI(title="GulfScopeIQ API", version="1.0.0")
 
@@ -23,3 +24,5 @@ app.include_router(tender_router, prefix="/api/tenders", tags=["tenders"])
 app.include_router(jobs_router, prefix="/api/jobs", tags=["jobs"])
 app.include_router(documents_router, prefix="/api/documents", tags=["documents"])
 app.include_router(correlation_router)
+
+app.include_router(profile_router, tags=["profile"])
