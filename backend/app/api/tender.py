@@ -1,0 +1,51 @@
+from fastapi import APIRouter
+from app.models.tender import TenderSearchRequest, TenderSearchResponse
+from app.intelligence.qatar_tenders import search_qatar_tenders
+from app.intelligence.kuwait_tenders import search_kuwait_tenders
+from app.intelligence.bahrain_tenders import search_bahrain_tenders
+
+router = APIRouter()
+
+@router.post("/search", response_model=TenderSearchResponse)
+async def search_tenders(request: TenderSearchRequest):
+    if request.country_code == "QA":
+        tenders, entities, relations = await search_qatar_tenders(request.query)
+        return TenderSearchResponse(
+            query=request.query,
+            country_code="QA",
+            status="collected",
+            tenders=tenders,
+            entities=entities,
+            relationships=relations
+        )
+
+    if request.country_code == "KW":
+        tenders, entities, relations = await search_kuwait_tenders(request.query)
+        return TenderSearchResponse(
+            query=request.query,
+            country_code="KW",
+            status="collected",
+            tenders=tenders,
+            entities=entities,
+            relationships=relations
+        )
+
+    if request.country_code == "BH":
+        tenders, entities, relations = await search_bahrain_tenders(request.query)
+        return TenderSearchResponse(
+            query=request.query,
+            country_code="BH",
+            status="collected",
+            tenders=tenders,
+            entities=entities,
+            relationships=relations
+        )
+
+    return TenderSearchResponse(
+        query=request.query,
+        country_code=request.country_code,
+        status="foundation",
+        tenders=[],
+        entities=[],
+        relationships=[]
+    )
