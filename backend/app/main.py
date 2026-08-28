@@ -8,6 +8,7 @@ from app.api.documents import router as documents_router
 from app.api.correlation import router as correlation_router
 from app.api.intelligence_profile import router as profile_router
 from app.api.infrastructure import router as infrastructure_router
+from app.api.registry import router as registry_router
 
 app = FastAPI(title="GulfScopeIQ API", version="1.0.0")
 
@@ -28,3 +29,4 @@ app.include_router(correlation_router, prefix="/api/correlation", tags=["correla
 
 app.include_router(profile_router, tags=["profile"])
 app.include_router(infrastructure_router, tags=["infrastructure"])
+app.include_router(registry_router, prefix="/api/registry", tags=["registry"])
