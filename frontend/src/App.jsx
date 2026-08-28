@@ -1179,10 +1179,10 @@ function App() {
         </div>
 
         {/* Tab Switcher */}
-        <div className="flex bg-slate-900 rounded-lg p-1 mb-6 border border-slate-700">
+        <div className="grid grid-cols-2 gap-1 bg-slate-900 rounded-lg p-1 mb-6 border border-slate-700">
           <button
             onClick={() => setActiveTab('company')}
-            className={`flex-1 py-1.5 text-sm font-medium rounded-md transition-colors ${
+            className={`w-full py-1.5 px-2 text-sm font-medium rounded-md transition-colors ${
               activeTab === 'company' ? 'bg-slate-700 text-white shadow' : 'text-slate-400 hover:text-slate-300'
             }`}
           >
@@ -1190,16 +1190,15 @@ function App() {
           </button>
           <button
             onClick={() => setActiveTab('tender')}
-            className={`flex-1 py-1.5 text-sm font-medium rounded-md transition-colors ${
+            className={`w-full py-1.5 px-2 text-sm font-medium rounded-md transition-colors ${
               activeTab === 'tender' ? 'bg-slate-700 text-white shadow' : 'text-slate-400 hover:text-slate-300'
             }`}
           >
             Tenders
           </button>
-
           <button
             onClick={() => setActiveTab('document')}
-            className={`flex-1 py-3 px-4 text-sm font-medium rounded-lg transition-all ${
+            className={`w-full py-1.5 px-2 text-sm font-medium rounded-md transition-colors ${
               activeTab === 'document' ? 'bg-slate-700 text-white shadow' : 'text-slate-400 hover:text-slate-300'
             }`}
           >
@@ -1207,7 +1206,7 @@ function App() {
           </button>
           <button
             onClick={() => setActiveTab('job')}
-            className={`flex-1 py-1.5 text-sm font-medium rounded-md transition-colors ${
+            className={`w-full py-1.5 px-2 text-sm font-medium rounded-md transition-colors ${
               activeTab === 'job' ? 'bg-slate-700 text-white shadow' : 'text-slate-400 hover:text-slate-300'
             }`}
           >
@@ -1215,7 +1214,7 @@ function App() {
           </button>
           <button
             onClick={() => setActiveTab('intelligence')}
-            className={`flex-1 py-1.5 text-sm font-medium rounded-md transition-colors ${
+            className={`col-span-2 w-full py-1.5 px-2 text-sm font-medium rounded-md transition-colors ${
               activeTab === 'intelligence' ? 'bg-slate-700 text-white shadow' : 'text-slate-400 hover:text-slate-300'
             }`}
           >
