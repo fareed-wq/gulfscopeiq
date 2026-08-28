@@ -578,8 +578,23 @@ function App() {
     if (status === 'foundation') {
       return (
         <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-12 text-center">
-          <p className="text-slate-300 text-lg mb-2">No matching jobs found.</p>
-          <p className="text-slate-400 text-sm mt-4">Automated job collection is not available for this selection yet.</p>
+          <p className="text-slate-300 text-lg mb-2">Automated job collection is not available for this source yet.</p>
+        </div>
+      )
+    }
+
+    if (status === 'error') {
+      return (
+        <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-12 text-center">
+          <p className="text-slate-300 text-lg mb-2">Job source temporarily unavailable.</p>
+        </div>
+      )
+    }
+
+    if (status === 'partial' && jobs.length === 0) {
+      return (
+        <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-12 text-center">
+          <p className="text-slate-300 text-lg mb-2">Some job sources were unavailable and no matching jobs were returned.</p>
         </div>
       )
     }
@@ -594,6 +609,11 @@ function App() {
 
     return (
       <div className="space-y-6">
+        {status === 'partial' && (
+          <div className="bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 p-3 rounded-lg text-sm">
+            Some job sources were unavailable.
+          </div>
+        )}
         <div className="bg-slate-800 rounded-xl p-6 border border-slate-700 shadow-lg">
           <div className="flex justify-between items-end">
             <div>
