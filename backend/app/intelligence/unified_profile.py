@@ -74,41 +74,16 @@ async def build_unified_profile(request: UnifiedProfileRequest) -> UnifiedProfil
         response.modules.company = ModuleStatus(status="error", error="Company Intelligence failed")
         response.modules.news = ModuleStatus(status="error", error="Skipped due to Company failure")
 
-    # Infrastructure Intelligence
+    # Concurrently launch applicable modules
+    infra_task = None
     if response.company and response.company.website:
         try:
             req_infra = InfrastructureInvestigateRequest(domain=response.company.website)
-            domain = req_infra.domain
-            if domain:
-                infra_res = await investigate_infrastructure(domain)
-                response.infrastructure = infra_res["profile"]
+            if req_infra.domain:
+                infra_task = asyncio.create_task(investigate_infrastructure(req_infra.domain))
+        except Exception:
+            pass
 
-                infra_entities = [e for e in infra_res["entities"] if e.type in ("Domain", "IPAddress", "Technology")]
-                response.modules.infrastructure = ModuleStatus(
-                    status=infra_res["status"],
-                    count=len(infra_entities)
-                )
-
-                all_entities.extend(infra_res["entities"])
-                all_rels.extend(infra_res["relationships"])
-
-                org_entity = next((e for e in comp_res.entities if e.type.lower() == "organization"), None)
-                dom_entity = next((e for e in infra_res["entities"] if e.type == "Domain"), None)
-
-                if org_entity and dom_entity:
-                    all_rels.append(IntelligenceRelationship(
-                        source=org_entity.id,
-                        target=dom_entity.id,
-                        type="operates",
-                        confidence="high"
-                    ))
-        except Exception as e:
-            logger.exception("Infrastructure Intelligence failed in unified profile")
-            has_error = True
-            response.modules.infrastructure = ModuleStatus(status="error", error="Infrastructure Intelligence failed")
-
-
-    # Launch optional modules concurrently if query is provided
     job_task = None
     doc_task = None
     tender_task = None
@@ -131,10 +106,10 @@ async def build_unified_profile(request: UnifiedProfileRequest) -> UnifiedProfil
         tender_req = TenderSearchRequest(
             query=request.query,
             country_code=request.country_code
-            # Not forcing organization into Tender query to avoid changing tender logic
         )
         tender_task = asyncio.create_task(search_tenders(tender_req))
 
+    # Await tasks and process results deterministically: Company/News (already done) -> Jobs -> Documents -> Tenders -> Infrastructure
 
     if job_task:
         try:
@@ -172,6 +147,34 @@ async def build_unified_profile(request: UnifiedProfileRequest) -> UnifiedProfil
             has_error = True
             response.modules.tenders = ModuleStatus(status="error", error="Tender Intelligence failed")
 
+    if infra_task:
+        try:
+            infra_res = await infra_task
+            response.infrastructure = infra_res["profile"]
+
+            infra_entities = [e for e in infra_res["entities"] if e.type in ("Domain", "IPAddress", "Technology")]
+            response.modules.infrastructure = ModuleStatus(
+                status=infra_res["status"],
+                count=len(infra_entities)
+            )
+
+            all_entities.extend(infra_res["entities"])
+            all_rels.extend(infra_res["relationships"])
+
+            org_entity = next((e for e in comp_res.entities if e.type.lower() == "organization"), None)
+            dom_entity = next((e for e in infra_res["entities"] if e.type == "Domain"), None)
+
+            if org_entity and dom_entity:
+                all_rels.append(IntelligenceRelationship(
+                    source=org_entity.id,
+                    target=dom_entity.id,
+                    type="operates",
+                    confidence="high"
+                ))
+        except Exception as e:
+            logger.exception("Infrastructure Intelligence failed in unified profile")
+            has_error = True
+            response.modules.infrastructure = ModuleStatus(status="error", error="Infrastructure Intelligence failed")
     # Finalize status
     if has_error:
         response.status = "partial"
