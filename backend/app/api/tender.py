@@ -6,7 +6,7 @@ from app.intelligence.bahrain_tenders import search_bahrain_tenders
 
 router = APIRouter()
 
-@router.post("/api/tenders/search", response_model=TenderSearchResponse)
+@router.post("/search", response_model=TenderSearchResponse)
 async def search_tenders(request: TenderSearchRequest):
     if request.country_code == "QA":
         tenders, entities, relations = await search_qatar_tenders(request.query)

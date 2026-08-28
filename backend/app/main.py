@@ -24,7 +24,7 @@ app.include_router(company_router, prefix="/api/company", tags=["company"])
 app.include_router(tender_router, prefix="/api/tenders", tags=["tenders"])
 app.include_router(jobs_router, prefix="/api/jobs", tags=["jobs"])
 app.include_router(documents_router, prefix="/api/documents", tags=["documents"])
-app.include_router(correlation_router)
+app.include_router(correlation_router, prefix="/api/correlation", tags=["correlation"])
 
 app.include_router(profile_router, tags=["profile"])
 app.include_router(infrastructure_router, tags=["infrastructure"])

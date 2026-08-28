@@ -2,7 +2,7 @@ from fastapi import APIRouter
 from app.models.correlation import CorrelationRequest, CorrelationResponse, CorrelationStats
 from app.intelligence.correlation import correlate_intelligence
 
-router = APIRouter(prefix="/api/correlation", tags=["correlation"])
+router = APIRouter()
 
 @router.post("/analyze", response_model=CorrelationResponse)
 async def analyze_correlation(request: CorrelationRequest):
@@ -10,7 +10,7 @@ async def analyze_correlation(request: CorrelationRequest):
         request.entities,
         request.relationships
     )
-    
+
     return CorrelationResponse(
         status="correlated",
         entities=entities,

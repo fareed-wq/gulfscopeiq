@@ -4,7 +4,7 @@ from app.intelligence.successfactors_jobs import search_successfactors_jobs, _ma
 
 router = APIRouter()
 
-@router.post("/api/jobs/search", response_model=JobSearchResponse)
+@router.post("/search", response_model=JobSearchResponse)
 async def search_jobs(request: JobSearchRequest):
     if request.country_code == "SA":
         matched = _match_sources("SA", request.company)
