@@ -5,6 +5,7 @@ from app.models.company import Company
 from app.models.job import Job
 from app.models.document import Document
 from app.models.tender import Tender
+from app.models.infrastructure import InfrastructureProfile
 from app.models.intelligence import IntelligenceEntity, IntelligenceRelationship
 from app.models.correlation import OrganizationCluster
 
@@ -19,6 +20,7 @@ class UnifiedProfileModules(BaseModel):
     jobs: ModuleStatus
     documents: ModuleStatus
     tenders: ModuleStatus
+    infrastructure: ModuleStatus
 
 class UnifiedProfileRequest(BaseModel):
     company_name: str
@@ -57,6 +59,7 @@ class UnifiedProfileResponse(BaseModel):
     query: Optional[str] = None
     
     company: Optional[Company] = None
+    infrastructure: Optional[InfrastructureProfile] = None
     
     modules: UnifiedProfileModules
     
