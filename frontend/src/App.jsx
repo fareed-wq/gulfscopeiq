@@ -1226,6 +1226,7 @@ function App() {
           >
             Intelligence
           </button>
+        </div>
 
         {activeTab === 'intelligence' ? (
           <form onSubmit={handleIntelSearch} className="space-y-4 flex-1">
