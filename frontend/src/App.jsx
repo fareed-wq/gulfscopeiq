@@ -259,14 +259,14 @@ function App() {
 
     const getStatusText = (status) => {
       if (status === 'configured') return 'Live';
-      if (status === 'foundation') return 'Foundation';
+      if (status === 'foundation') return 'Not configured';
       if (status === 'unavailable') return 'Unavailable';
       return 'Unknown';
     };
 
     const getStatusColor = (text) => {
       if (text.startsWith('Live')) return 'text-emerald-400';
-      if (text === 'Foundation') return 'text-yellow-400';
+      if (text === 'Not configured') return 'text-amber-400/90';
       if (text === 'Unavailable') return 'text-rose-400';
       return 'text-slate-400';
     };
@@ -297,8 +297,8 @@ function App() {
               const jobsOrgs = country.organizations.filter(o => o.capabilities.jobs === 'configured');
               const docsOrgs = country.organizations.filter(o => o.capabilities.documents === 'configured');
 
-              const jobsStatus = jobsOrgs.length > 0 ? 'Live' : 'Foundation';
-              const docsStatus = docsOrgs.length > 0 ? 'Live' : 'Foundation';
+              const jobsStatus = jobsOrgs.length > 0 ? 'Live' : 'Not configured';
+              const docsStatus = docsOrgs.length > 0 ? 'Live' : 'Not configured';
               const tendersStatus = getStatusText(country.tenders);
 
               return (
@@ -331,7 +331,7 @@ function App() {
               );
             })}
 
-            <div className="pt-2 border-t border-slate-700/50 text-[10px] text-slate-500 space-y-1">
+            <div className="pt-2 border-t border-slate-700/50 text-[11px] text-slate-400 space-y-1">
               <p>Coverage reflects currently configured public sources and does not imply complete national coverage.</p>
               <p>* Infrastructure intelligence requires a verified public company domain.</p>
             </div>
