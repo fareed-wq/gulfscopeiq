@@ -37,7 +37,7 @@ CORPORATE_SOURCES = [
     ),
     SourceConfig(
         organization="Emirates NBD",
-        aliases=["emirates nbd", "enbd"],
+        aliases=["emirates nbd", "enbd", "emirates_nbd"],
         country_code="AE",
         index_url="https://www.emiratesnbd.com/en/investor-relations",
         allowed_hosts=["www.emiratesnbd.com", "cdn.emiratesnbd.com"],
