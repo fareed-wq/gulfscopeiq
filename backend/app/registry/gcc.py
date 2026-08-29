@@ -90,6 +90,17 @@ GCC_REGISTRY: Dict[str, CountryRegistryEntry] = {
     "OM": CountryRegistryEntry(
         country_code="OM",
         country_name="Oman",
-        tenders=SourceStatus.foundation
+        tenders=SourceStatus.foundation,
+        organizations=[
+            OrganizationRegistryEntry(
+                organization_id="oq",
+                organization_name="OQ",
+                aliases=["oq", "oq energy"],
+                capabilities=OrganizationCapabilities(
+                    documents=SourceStatus.foundation,
+                    jobs=SourceStatus.configured
+                )
+            )
+        ]
     )
 }
