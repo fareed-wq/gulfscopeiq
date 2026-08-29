@@ -144,34 +144,45 @@ def test_search_corporate_ir_documents_size_limit(mock_httpx_client):
 def test_search_corporate_ir_documents_emirates_nbd(mock_httpx_client):
     mock_client_class, mock_instance = mock_httpx_client
     async def run_test():
-        html = b"""
+        html = b'''
         <html>
             <body>
-                <a href="/-/media/enbd/files/esg_report_2024.pdf">Sustainability 2024</a>
-                <a href="https://cdn.emiratesnbd.com/en/assets/ir/annual_report_2023.pdf">Annual Report 2023</a>
-                <a href="https://cdn.emiratesnbd.com/en/assets/ir/financial_statements_2023.pdf">Financial Statements</a>
-                <a href="https://cdn.emiratesnbd.com/en/assets/ir/presentation_2023.pdf">Presentation</a>
+                <a href="/Integrated-Reports/esg_report_2021.pdf">2021</a>
+                <a href="/Integrated-Reports/financial_statements_2021.pdf">2021</a>
+                <a href="/Integrated-Reports/directors_report_2021.pdf">2021</a>
+                <a href="/Integrated-Reports/cgr_report_2021.pdf">2021</a>
+                <a href="https://cdn.emiratesnbd.com/assets/pdf/annual_report_2023.pdf">2023</a>
                 <a href="/unknown.pdf">Other document</a>
                 <a href="https://untrusted.com/test.pdf">Untrusted</a>
             </body>
         </html>
-        """
+        '''
         mock_instance.stream.return_value = MockStreamContextManager([MockStreamResponse(200, html)])
 
         req = DocumentSearchRequest(query="Emirates NBD", country_code="AE")
         docs, ents, rels, status = await search_corporate_ir_documents(req)
 
-        assert len(docs) == 4
-        assert docs[0].title == "Sustainability 2024"
-        assert docs[0].document_type == "ESG Report"
-        assert docs[1].document_type == "Annual Report"
-        assert docs[2].document_type == "Financial Statement"
-        assert docs[3].document_type == "Investor Presentation"
+        assert len(docs) == 5
 
+        titles = {d.title: d.document_type for d in docs}
+        assert "ESG Report 2021" in titles
+        assert titles["ESG Report 2021"] == "ESG Report"
+
+        assert "Financial Statements 2021" in titles
+        assert titles["Financial Statements 2021"] == "Financial Statement"
+
+        assert "Directors Report 2021" in titles
+        assert titles["Directors Report 2021"] == "Integrated Report"
+
+        assert "CGR Report 2021" in titles
+        assert titles["CGR Report 2021"] == "Integrated Report"
+
+        assert "Annual Report 2023" in titles
+        assert titles["Annual Report 2023"] == "Annual Report"
 
         file_urls = [d.file_url for d in docs]
-        assert "https://www.emiratesnbd.com/-/media/enbd/files/esg_report_2024.pdf" in file_urls
-        assert "https://cdn.emiratesnbd.com/en/assets/ir/annual_report_2023.pdf" in file_urls
+        assert "https://www.emiratesnbd.com/Integrated-Reports/esg_report_2021.pdf" in file_urls
+        assert "https://www.emiratesnbd.com/Integrated-Reports/financial_statements_2021.pdf" in file_urls
         assert "https://untrusted.com/test.pdf" not in file_urls
 
     asyncio.run(run_test())

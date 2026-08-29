@@ -52,7 +52,10 @@ CORPORATE_SOURCES = [
     )
 ]
 
-from urllib.parse import unquote
+from urllib.parse import unquote, urlparse
+from pathlib import Path
+import re
+
 async def _process_source(source: SourceConfig, request: DocumentSearchRequest) -> Tuple[str, List[Document], List[IntelligenceEntity], List[IntelligenceRelationship]]:
     documents = []
     entities = []
@@ -137,17 +140,44 @@ async def _process_source(source: SourceConfig, request: DocumentSearchRequest) 
 
         # URL normalization for category matching: replace _, -, %20 with space
         normalized_href = decoded_href.replace("_", " ").replace("-", " ").replace("%20", " ")
-        cat_context = f"{title_lower} {normalized_href}"
+        filename_norm = Path(parsed_url.path).name.replace("_", " ").replace("-", " ").replace("%20", " ").lower()
+
+        # Category precedence: 1. filename, 2. title, 3. full url
+        contexts = [filename_norm, title_lower, normalized_href]
 
         doc_type = None
-        for k, v in source.category_mapping.items():
-            if k in cat_context:
-                doc_type = v
+        for ctx in contexts:
+            for k, v in source.category_mapping.items():
+                if k in ctx:
+                    doc_type = v
+                    break
+            if doc_type:
                 break
 
         if not doc_type:
             continue
 
+        # Improve year-only titles
+        original_title_stripped = title.strip()
+        if re.fullmatch(r"20\d{2}", original_title_stripped):
+            stem = Path(parsed_url.path).stem
+            if stem:
+                words = stem.replace("_", " ").replace("-", " ").replace("%20", " ").split()
+                formatted_words = []
+                for w in words:
+                    if w.lower() in ["esg", "cgr", "csr"]:
+                        formatted_words.append(w.upper())
+                    elif w.isdigit():
+                        formatted_words.append(w)
+                    else:
+                        formatted_words.append(w.capitalize())
+                title = " ".join(formatted_words)
+                if not title:
+                    title = f"{doc_type} {original_title_stripped}"
+            else:
+                title = f"{doc_type} {original_title_stripped}"
+
+        cat_context = f"{title.lower()} {normalized_href}"
         search_context = f"{cat_context} {source.organization.lower()} {doc_type.lower()}"
         for key, val in source.category_mapping.items():
             if val == doc_type:
@@ -191,7 +221,6 @@ async def _process_source(source: SourceConfig, request: DocumentSearchRequest) 
             break
 
     return "collected", documents, entities, relationships
-
 async def search_corporate_ir_documents(request: DocumentSearchRequest) -> Tuple[List[Document], List[IntelligenceEntity], List[IntelligenceRelationship], str]:
     req_country = request.country_code.upper()
     req_org = request.organization.lower() if request.organization else None
