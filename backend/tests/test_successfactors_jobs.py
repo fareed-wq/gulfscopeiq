@@ -217,3 +217,39 @@ def test_deterministic_ids():
 
 
 
+
+def test_search_oq_oman():
+    oq_html = _make_row(title="OQ Process Engineer", link="/job/oq-123", loc="Muscat, OM", dept="Refinery")
+    client = MockClient(text_map={"careers.oq.com": oq_html})
+
+    jobs, ents, rels, status = asyncio.run(search_successfactors_jobs("engineer", "OM", "OQ", client=client))
+
+    assert status == "collected"
+    assert len(jobs) == 1
+    assert client.call_count == 1
+
+    j = jobs[0]
+    assert j.company == "OQ"
+    assert j.title == "OQ Process Engineer"
+    assert j.location == "Muscat, OM"
+    assert j.department == "Refinery"
+    assert j.source_url == "https://careers.oq.com/job/oq-123"
+
+def test_search_oq_alias():
+    oq_html = _make_row(title="OQ Job")
+    client = MockClient(text_map={"careers.oq.com": oq_html})
+
+    jobs, _, _, _ = asyncio.run(search_successfactors_jobs("engineer", "OM", "oq energy", client=client))
+    assert len(jobs) == 1
+    assert jobs[0].company == "OQ"
+
+def test_search_oq_does_not_affect_saudi():
+    sources = _match_sources("SA", None)
+    names = [s[0] for s in sources]
+    assert "OQ" not in names
+
+def test_search_oq_failure_semantics():
+    client = MockClient(error_map={"careers.oq.com": Exception("Timeout")})
+    jobs, _, _, status = asyncio.run(search_successfactors_jobs("engineer", "OM", "OQ", client=client))
+    assert status == "error"
+    assert len(jobs) == 0

@@ -1,6 +1,7 @@
-from fastapi.testclient import TestClient
+﻿from fastapi.testclient import TestClient
 from unittest.mock import patch, AsyncMock
 from app.main import app
+from app.models.job import Job
 
 client = TestClient(app)
 
@@ -20,10 +21,10 @@ def test_jobs_search_valid(mock_search):
     assert data["company"] == "Aramco"
     assert data["status"] == "collected"
     assert data["jobs"] == []
-    assert data["entities"] == []
-    assert data["relationships"] == []
 
-def test_jobs_search_whitespace_normalization():
+@patch('app.api.jobs.search_successfactors_jobs', new_callable=AsyncMock)
+def test_jobs_search_whitespace_normalization(mock_search):
+    mock_search.return_value = ([], [], [], 'foundation')
     response = client.post("/api/jobs/search", json={
         "query": "  cybersecurity   engineer  ",
         "country_code": " bh ",
@@ -35,7 +36,9 @@ def test_jobs_search_whitespace_normalization():
     assert data["country_code"] == "BH"
     assert data["company"] == "Saudi Aramco"
 
-def test_jobs_search_country_code_uppercase():
+@patch('app.api.jobs.search_successfactors_jobs', new_callable=AsyncMock)
+def test_jobs_search_country_code_uppercase(mock_search):
+    mock_search.return_value = ([], [], [], 'foundation')
     response = client.post("/api/jobs/search", json={
         "query": "developer",
         "country_code": "qa"
@@ -44,7 +47,9 @@ def test_jobs_search_country_code_uppercase():
     data = response.json()
     assert data["country_code"] == "QA"
 
-def test_jobs_search_optional_company():
+@patch('app.api.jobs.search_successfactors_jobs', new_callable=AsyncMock)
+def test_jobs_search_optional_company(mock_search):
+    mock_search.return_value = ([], [], [], 'foundation')
     response = client.post("/api/jobs/search", json={
         "query": "engineer",
         "country_code": "KW"
@@ -53,7 +58,9 @@ def test_jobs_search_optional_company():
     data = response.json()
     assert data["company"] is None
 
-def test_jobs_search_company_whitespace_becomes_none():
+@patch('app.api.jobs.search_successfactors_jobs', new_callable=AsyncMock)
+def test_jobs_search_company_whitespace_becomes_none(mock_search):
+    mock_search.return_value = ([], [], [], 'foundation')
     response = client.post("/api/jobs/search", json={
         "query": "engineer",
         "company": "   "
@@ -75,9 +82,6 @@ def test_jobs_search_missing_query_rejected():
     })
     assert response.status_code == 422
 
-from unittest.mock import patch, AsyncMock
-from app.models.job import Job
-
 @patch('app.api.jobs.search_successfactors_jobs', new_callable=AsyncMock)
 def test_jobs_search_sa_successfactors(mock_search):
     mock_search.return_value = ([Job(title='SF Job 1', country_code='SA', company='STC')], [], [], 'collected')
@@ -94,11 +98,45 @@ def test_jobs_search_sa_successfactors(mock_search):
     assert len(data['jobs']) == 1
     assert data['jobs'][0]['title'] == 'SF Job 1'
 
-def test_jobs_search_sa_unsupported_company():
+@patch('app.api.jobs.search_successfactors_jobs', new_callable=AsyncMock)
+def test_jobs_search_om_oq_successfactors(mock_search):
+    mock_search.return_value = ([Job(title='OQ Job', country_code='OM', company='OQ')], [], [], 'collected')
+
     response = client.post('/api/jobs/search', json={
         'query': 'engineer',
-        'country_code': 'SA',
-        'company': 'Unknown Company'
+        'country_code': 'OM',
+        'company': 'OQ'
+    })
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data['status'] == 'collected'
+    assert len(data['jobs']) == 1
+    assert data['jobs'][0]['title'] == 'OQ Job'
+
+@patch('app.api.jobs.search_successfactors_jobs', new_callable=AsyncMock)
+def test_jobs_search_om_oq_upstream_error(mock_search):
+    mock_search.return_value = ([], [], [], 'error')
+
+    response = client.post('/api/jobs/search', json={
+        'query': 'engineer',
+        'country_code': 'OM',
+        'company': 'OQ'
+    })
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data['status'] == 'error'
+    assert len(data['jobs']) == 0
+
+@patch('app.api.jobs.search_successfactors_jobs', new_callable=AsyncMock)
+def test_jobs_search_unsupported_foundation(mock_search):
+    mock_search.return_value = ([], [], [], 'foundation')
+
+    response = client.post('/api/jobs/search', json={
+        'query': 'engineer',
+        'country_code': 'AE',
+        'company': 'Unknown'
     })
 
     assert response.status_code == 200

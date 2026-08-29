@@ -34,10 +34,29 @@ CORPORATE_SOURCES = [
             "sustainability": "ESG Report",
             "esg": "ESG Report"
         }
+    ),
+    SourceConfig(
+        organization="Emirates NBD",
+        aliases=["emirates nbd", "enbd", "emirates_nbd"],
+        country_code="AE",
+        index_url="https://www.emiratesnbd.com/en/investor-relations",
+        allowed_hosts=["www.emiratesnbd.com", "cdn.emiratesnbd.com"],
+        category_mapping={
+            "annual report": "Annual Report",
+            "integrated report": "Integrated Report",
+            "financial statement": "Financial Statement",
+            "sustainability": "ESG Report",
+            "esg": "ESG Report",
+            "presentation": "Investor Presentation"
+        }
     )
 ]
 
-async def _process_source(source: SourceConfig, request: DocumentSearchRequest) -> Tuple[List[Document], List[IntelligenceEntity], List[IntelligenceRelationship]]:
+from urllib.parse import unquote, urlparse
+from pathlib import Path
+import re
+
+async def _process_source(source: SourceConfig, request: DocumentSearchRequest) -> Tuple[str, List[Document], List[IntelligenceEntity], List[IntelligenceRelationship], Dict[str, Any]]:
     documents = []
     entities = []
     relationships = []
@@ -51,45 +70,51 @@ async def _process_source(source: SourceConfig, request: DocumentSearchRequest) 
     current_url = source.index_url
     redirects = 0
     content = b""
-    
-    while redirects <= 2:
-        parsed_current = urlparse(current_url)
-        if parsed_current.scheme != "https" or parsed_current.hostname.lower() not in source.allowed_hosts:
-            return [], [], []
 
-        async with client.stream("GET", current_url) as response:
-            if response.status_code in (301, 302, 303, 307, 308):
-                location = response.headers.get("location")
-                if not location:
-                    break
-                current_url = urljoin(current_url, location)
-                redirects += 1
-                continue
-            
-            if response.status_code != 200:
-                return [], [], []
+    try:
+        while redirects <= 2:
+            parsed_current = urlparse(current_url)
+            if parsed_current.scheme != "https" or parsed_current.hostname.lower() not in source.allowed_hosts:
+                return "error", [], [], [], {"failure_type": "request_error"}
 
-            content_type = response.headers.get("content-type", "").lower()
-            if "text/html" not in content_type:
-                return [], [], []
+            async with client.stream("GET", current_url) as response:
+                if response.status_code in (301, 302, 303, 307, 308):
+                    location = response.headers.get("location")
+                    if not location:
+                        break
+                    current_url = urljoin(current_url, location)
+                    redirects += 1
+                    continue
 
-            async for chunk in response.aiter_bytes():
-                content += chunk
-                if len(content) > 5 * 1024 * 1024:
-                    return [], [], []
-            
-            break
-    else:
-        return [], [], []
+                if response.status_code != 200:
+                    return "error", [], [], [], {"failure_type": "http_error", "upstream_status": response.status_code}
 
-    await client.aclose()
+                content_type = response.headers.get("content-type", "").lower()
+                if "text/html" not in content_type:
+                    return "error", [], [], [], {"failure_type": "request_error"}
+
+                async for chunk in response.aiter_bytes():
+                    content += chunk
+                    if len(content) > 5 * 1024 * 1024:
+                        return "error", [], [], [], {"failure_type": "request_error"}
+
+                break
+        else:
+            return "error", [], [], [], {"failure_type": "request_error"}
+    except httpx.TimeoutException:
+        return "error", [], [], [], {"failure_type": "timeout"}
+    except Exception:
+        return "error", [], [], [], {"failure_type": "request_error"}
+    finally:
+        await client.aclose()
+
 
     if not content:
-        return [], [], []
+        return "error", [], [], [], {"failure_type": "request_error"}
 
     soup = BeautifulSoup(content, 'html.parser')
     seen_urls = set()
-    
+
     q_lower = request.query.lower()
     req_type_lower = request.document_type.lower() if request.document_type else None
 
@@ -116,23 +141,64 @@ async def _process_source(source: SourceConfig, request: DocumentSearchRequest) 
         if not title:
             title = parsed_url.path.split("/")[-1]
 
-        doc_type = None
+        decoded_href = unquote(href).lower()
         title_lower = title.lower()
-        for k, v in source.category_mapping.items():
-            if k in title_lower:
-                doc_type = v
+
+        # URL normalization for category matching: replace _, -, %20 with space
+        normalized_href = decoded_href.replace("_", " ").replace("-", " ").replace("%20", " ")
+        filename_norm = Path(parsed_url.path).name.replace("_", " ").replace("-", " ").replace("%20", " ").lower()
+
+        # Category precedence: 1. filename, 2. title, 3. full url
+        contexts = [filename_norm, title_lower, normalized_href]
+
+        doc_type = None
+        for ctx in contexts:
+            for k, v in source.category_mapping.items():
+                if k in ctx:
+                    doc_type = v
+                    break
+            if doc_type:
                 break
 
-        if q_lower not in title_lower and (not doc_type or q_lower not in doc_type.lower()) and q_lower not in source.organization.lower():
+        if not doc_type:
+            continue
+
+        # Improve year-only titles
+        original_title_stripped = title.strip()
+        if re.fullmatch(r"20\d{2}", original_title_stripped):
+            stem = Path(parsed_url.path).stem
+            if stem:
+                words = stem.replace("_", " ").replace("-", " ").replace("%20", " ").split()
+                formatted_words = []
+                for w in words:
+                    if w.lower() in ["esg", "cgr", "csr"]:
+                        formatted_words.append(w.upper())
+                    elif w.isdigit():
+                        formatted_words.append(w)
+                    else:
+                        formatted_words.append(w.capitalize())
+                title = " ".join(formatted_words)
+                if not title:
+                    title = f"{doc_type} {original_title_stripped}"
+            else:
+                title = f"{doc_type} {original_title_stripped}"
+
+        cat_context = f"{title.lower()} {normalized_href}"
+        search_context = f"{cat_context} {source.organization.lower()} {doc_type.lower()}"
+        for key, val in source.category_mapping.items():
+            if val == doc_type:
+                search_context += f" {key.lower()}"
+
+        if q_lower not in search_context:
             continue
 
         if req_type_lower:
-            if not doc_type or req_type_lower not in doc_type.lower():
+            if req_type_lower not in doc_type.lower():
                 continue
 
         doc_id_str = _stable_id(full_url)
         doc_id = f"doc_{doc_id_str}"
-        
+
         doc = Document(
             id=doc_id,
             title=title,
@@ -145,14 +211,14 @@ async def _process_source(source: SourceConfig, request: DocumentSearchRequest) 
             evidence=[Evidence(source="corporate_ir", source_url=current_url)],
             attributes={}
         )
-        
+
         doc_entity = IntelligenceEntity(id=doc_id, type="document", label=title, attributes={"document_type": doc_type, "file_url": full_url})
         rel = IntelligenceRelationship(source=doc_id, target=org_id, type="published_by", confidence="high")
 
         documents.append(doc)
         entities.append(doc_entity)
         relationships.append(rel)
-        
+
         if not org_added:
             entities.append(org_entity)
             org_added = True
@@ -160,32 +226,46 @@ async def _process_source(source: SourceConfig, request: DocumentSearchRequest) 
         if len(documents) >= 30:
             break
 
-    return documents, entities, relationships
-
-async def search_corporate_ir_documents(request: DocumentSearchRequest) -> Tuple[List[Document], List[IntelligenceEntity], List[IntelligenceRelationship]]:
+    return "collected", documents, entities, relationships, {}
+async def search_corporate_ir_documents(request: DocumentSearchRequest) -> Tuple[List[Document], List[IntelligenceEntity], List[IntelligenceRelationship], str, Dict[str, Any]]:
     req_country = request.country_code.upper()
     req_org = request.organization.lower() if request.organization else None
 
     tasks = []
+    task_sources = []
     for src in CORPORATE_SOURCES:
         if src.country_code != req_country:
             continue
         if req_org and req_org != src.organization.lower() and req_org not in src.aliases:
             continue
         tasks.append(_process_source(src, request))
+        task_sources.append(src)
 
     if not tasks:
-        return [], [], []
+        return [], [], [], "foundation", {}
 
-    results = await asyncio.gather(*tasks)
-    
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+
     all_docs = []
     all_ents = []
     all_rels = []
     seen_ents = set()
-    
-    for res in results:
-        docs, ents, rels = res
+    statuses = []
+
+    diagnostics = {}
+    for i, res in enumerate(results):
+        src = task_sources[i]
+        if isinstance(res, Exception):
+            statuses.append("error")
+            failure_type = "request_error"
+            if isinstance(res, httpx.TimeoutException):
+                failure_type = "timeout"
+            diagnostics[src.organization] = {"failure_type": failure_type}
+            continue
+        status, docs, ents, rels, diag = res
+        statuses.append(status)
+        if diag:
+            diagnostics[src.organization] = diag
         all_docs.extend(docs)
         for e in ents:
             if e.id not in seen_ents:
@@ -194,9 +274,16 @@ async def search_corporate_ir_documents(request: DocumentSearchRequest) -> Tuple
         all_rels.extend(rels)
 
     all_docs = all_docs[:30]
-    
+
     doc_ids = {d.id for d in all_docs}
     pruned_rels = [r for r in all_rels if r.source in doc_ids]
     pruned_ents = [e for e in all_ents if e.type == "organization" or e.id in doc_ids]
 
-    return all_docs, pruned_ents, pruned_rels
+    if "collected" in statuses and "error" in statuses:
+        final_status = "partial"
+    elif "collected" in statuses:
+        final_status = "collected"
+    else:
+        final_status = "error"
+
+    return all_docs, pruned_ents, pruned_rels, final_status, diagnostics

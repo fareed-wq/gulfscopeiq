@@ -30,6 +30,11 @@ SUCCESSFACTORS_SOURCES = {
         "base_url": "https://jobs.sabic.com",
         "aliases": [],
         "country_code": "SA"
+    },
+    "OQ": {
+        "base_url": "https://careers.oq.com",
+        "aliases": ["oq", "oq energy"],
+        "country_code": "OM"
     }
 }
 

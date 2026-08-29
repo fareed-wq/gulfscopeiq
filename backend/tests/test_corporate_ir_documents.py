@@ -53,15 +53,15 @@ def test_search_corporate_ir_documents_valid(mock_httpx_client):
         mock_instance.stream.return_value = MockStreamContextManager([MockStreamResponse(200, html)])
 
         req = DocumentSearchRequest(query="SABIC", country_code="SA")
-        docs, ents, rels = await search_corporate_ir_documents(req)
+        docs, ents, rels, status, diagnostics = await search_corporate_ir_documents(req)
 
-        assert len(docs) == 5
+        assert len(docs) == 4
         assert docs[0].title == "Annual Report 2023"
         assert docs[0].document_type == "Annual Report"
         assert docs[1].document_type == "Board Report"
         assert docs[2].document_type == "ESG Report"
         assert docs[3].document_type == "Investor Presentation"
-        assert docs[4].document_type is None
+
 
         assert docs[0].organization == "SABIC"
         assert docs[0].source_url == "https://www.sabic.com/en/investors"
@@ -71,8 +71,8 @@ def test_search_corporate_ir_documents_valid(mock_httpx_client):
         assert "http://www.google.com/test.pdf" not in file_urls
         assert "https://www.sabic.com/en/Images/not-a-pdf.html" not in file_urls
 
-        assert len(ents) == 6
-        assert len(rels) == 5
+        assert len(ents) == 5
+        assert len(rels) == 4
 
         # Regression check for headers
         mock_client_class.assert_called_once()
@@ -98,7 +98,7 @@ def test_search_corporate_ir_documents_filtering(mock_httpx_client):
         mock_instance.stream.return_value = MockStreamContextManager([MockStreamResponse(200, html)])
 
         req = DocumentSearchRequest(query="2023", country_code="SA", document_type="Annual Report")
-        docs, ents, rels = await search_corporate_ir_documents(req)
+        docs, ents, rels, status, diagnostics = await search_corporate_ir_documents(req)
         assert len(docs) == 1
         assert docs[0].document_type == "Annual Report"
     asyncio.run(run_test())
@@ -107,12 +107,12 @@ def test_search_corporate_ir_documents_redirect(mock_httpx_client):
     mock_client_class, mock_instance = mock_httpx_client
     async def run_test():
         redirect = MockStreamResponse(301, b"", {"location": "/new-investors"})
-        final = MockStreamResponse(200, b"<html><a href='test.pdf'>SABIC Doc</a></html>")
+        final = MockStreamResponse(200, b"<html><a href='test.pdf'>Annual Report</a></html>")
 
         mock_instance.stream.return_value = MockStreamContextManager([redirect, final])
 
         req = DocumentSearchRequest(query="SABIC", country_code="SA")
-        docs, ents, rels = await search_corporate_ir_documents(req)
+        docs, ents, rels, status, diagnostics = await search_corporate_ir_documents(req)
 
         assert len(docs) == 1
         assert docs[0].source_url == "https://www.sabic.com/new-investors"
@@ -122,11 +122,11 @@ def test_search_corporate_ir_documents_redirect(mock_httpx_client):
 def test_search_corporate_ir_documents_unsupported():
     async def run_test():
         req = DocumentSearchRequest(query="SABIC", country_code="US")
-        docs, ents, rels = await search_corporate_ir_documents(req)
+        docs, ents, rels, status, diagnostics = await search_corporate_ir_documents(req)
         assert len(docs) == 0
 
         req = DocumentSearchRequest(query="SABIC", country_code="SA", organization="Aramco")
-        docs, ents, rels = await search_corporate_ir_documents(req)
+        docs, ents, rels, status, diagnostics = await search_corporate_ir_documents(req)
         assert len(docs) == 0
     asyncio.run(run_test())
 
@@ -137,8 +137,54 @@ def test_search_corporate_ir_documents_size_limit(mock_httpx_client):
         mock_instance.stream.return_value = MockStreamContextManager([MockStreamResponse(200, content)])
 
         req = DocumentSearchRequest(query="SABIC", country_code="SA")
-        docs, ents, rels = await search_corporate_ir_documents(req)
+        docs, ents, rels, status, diagnostics = await search_corporate_ir_documents(req)
         assert len(docs) == 0
+    asyncio.run(run_test())
+
+def test_search_corporate_ir_documents_emirates_nbd(mock_httpx_client):
+    mock_client_class, mock_instance = mock_httpx_client
+    async def run_test():
+        html = b'''
+        <html>
+            <body>
+                <a href="/Integrated-Reports/esg_report_2021.pdf">2021</a>
+                <a href="/Integrated-Reports/financial_statements_2021.pdf">2021</a>
+                <a href="/Integrated-Reports/directors_report_2021.pdf">2021</a>
+                <a href="/Integrated-Reports/cgr_report_2021.pdf">2021</a>
+                <a href="https://cdn.emiratesnbd.com/assets/pdf/annual_report_2023.pdf">2023</a>
+                <a href="/unknown.pdf">Other document</a>
+                <a href="https://untrusted.com/test.pdf">Untrusted</a>
+            </body>
+        </html>
+        '''
+        mock_instance.stream.return_value = MockStreamContextManager([MockStreamResponse(200, html)])
+
+        req = DocumentSearchRequest(query="Emirates NBD", country_code="AE")
+        docs, ents, rels, status, diagnostics = await search_corporate_ir_documents(req)
+
+        assert len(docs) == 5
+
+        titles = {d.title: d.document_type for d in docs}
+        assert "ESG Report 2021" in titles
+        assert titles["ESG Report 2021"] == "ESG Report"
+
+        assert "Financial Statements 2021" in titles
+        assert titles["Financial Statements 2021"] == "Financial Statement"
+
+        assert "Directors Report 2021" in titles
+        assert titles["Directors Report 2021"] == "Integrated Report"
+
+        assert "CGR Report 2021" in titles
+        assert titles["CGR Report 2021"] == "Integrated Report"
+
+        assert "Annual Report 2023" in titles
+        assert titles["Annual Report 2023"] == "Annual Report"
+
+        file_urls = [d.file_url for d in docs]
+        assert "https://www.emiratesnbd.com/Integrated-Reports/esg_report_2021.pdf" in file_urls
+        assert "https://www.emiratesnbd.com/Integrated-Reports/financial_statements_2021.pdf" in file_urls
+        assert "https://untrusted.com/test.pdf" not in file_urls
+
     asyncio.run(run_test())
 
 def test_deterministic_id():
@@ -149,3 +195,33 @@ def test_deterministic_id():
     assert id1 == id2
     assert id1 != id3
     assert len(id1) == 16
+
+
+def test_search_corporate_ir_documents_diagnostics_http_error(mock_httpx_client):
+    mock_client_class, mock_instance = mock_httpx_client
+    async def run_test():
+        mock_instance.stream.return_value = MockStreamContextManager([MockStreamResponse(403, b"Forbidden")])
+        req = DocumentSearchRequest(query="SABIC", country_code="SA")
+        docs, ents, rels, status, diag = await search_corporate_ir_documents(req)
+        assert len(docs) == 0
+        assert status == "error"
+        assert "SABIC" in diag
+        assert diag["SABIC"]["failure_type"] == "http_error"
+        assert diag["SABIC"]["upstream_status"] == 403
+    import asyncio
+    asyncio.run(run_test())
+
+def test_search_corporate_ir_documents_diagnostics_timeout(mock_httpx_client):
+    mock_client_class, mock_instance = mock_httpx_client
+    import httpx
+    async def run_test():
+        # Raise httpx.TimeoutException when stream is called
+        mock_instance.stream.side_effect = httpx.TimeoutException("Timeout")
+        req = DocumentSearchRequest(query="SABIC", country_code="SA")
+        docs, ents, rels, status, diag = await search_corporate_ir_documents(req)
+        assert len(docs) == 0
+        assert status == "error"
+        assert "SABIC" in diag
+        assert diag["SABIC"]["failure_type"] == "timeout"
+    import asyncio
+    asyncio.run(run_test())

@@ -4,7 +4,8 @@ import IntelligenceGraph from './components/IntelligenceGraph'
 
 function App() {
   const [apiStatus, setApiStatus] = useState('Checking...')
-  const [activeTab, setActiveTab] = useState('company') // 'company' or 'tender'
+  const [activeTab, setActiveTab] = useState('company')
+  const [coverageExpanded, setCoverageExpanded] = useState(false)
 
   // Intelligence State
   const [intelCompanyName, setIntelCompanyName] = useState('')
@@ -45,6 +46,28 @@ function App() {
   const [jobLoading, setJobLoading] = useState(false)
   const [jobResult, setJobResult] = useState(null)
   const [jobError, setJobError] = useState(null)
+
+  const [gccRegistry, setGccRegistry] = useState(null)
+  const [registryLoading, setRegistryLoading] = useState(true)
+  const [registryError, setRegistryError] = useState(null)
+
+  useEffect(() => {
+    fetch('/api/registry/gcc')
+      .then(res => {
+        if (!res.ok) throw new Error('Source configuration is temporarily unavailable.')
+        const isJson = res.headers.get('content-type')?.includes('application/json')
+        if (!isJson) throw new Error('Source configuration is temporarily unavailable.')
+        return res.json()
+      })
+      .then(data => {
+        setGccRegistry(data)
+        setRegistryLoading(false)
+      })
+      .catch(err => {
+        setRegistryError("Source configuration is temporarily unavailable.")
+        setRegistryLoading(false)
+      })
+  }, [])
 
   useEffect(() => {
     fetch('/api/health')
@@ -228,6 +251,96 @@ function App() {
       setJobLoading(false)
     }
   }
+
+  const renderCoverage = () => {
+    if (!gccRegistry) return null;
+
+    const countries = ['SA', 'AE', 'QA', 'KW', 'BH', 'OM'];
+
+    const getStatusText = (status) => {
+      if (status === 'configured') return 'Live';
+      if (status === 'foundation') return 'Not configured';
+      if (status === 'unavailable') return 'Unavailable';
+      return 'Unknown';
+    };
+
+    const getStatusColor = (text) => {
+      if (text.startsWith('Live')) return 'text-emerald-400';
+      if (text === 'Limited') return 'text-sky-400';
+      if (text === 'Not configured') return 'text-amber-400/90';
+      if (text === 'Unavailable') return 'text-rose-400';
+      return 'text-slate-400';
+    };
+
+    return (
+      <div className="mt-6 border border-slate-700/50 rounded-lg overflow-hidden bg-slate-900/30">
+        <button
+          onClick={() => setCoverageExpanded(!coverageExpanded)}
+          className="w-full p-3 flex items-center justify-between bg-slate-800/50 hover:bg-slate-700/50 transition-colors"
+        >
+          <div className="flex items-center space-x-2">
+            <svg className="w-4 h-4 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+            </svg>
+            <span className="text-xs font-semibold text-slate-300">Supported Coverage</span>
+          </div>
+          <svg className={`w-4 h-4 text-slate-500 transition-transform ${coverageExpanded ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path>
+          </svg>
+        </button>
+
+        {coverageExpanded && (
+          <div className="p-3 text-xs space-y-4 border-t border-slate-700/50 max-h-96 overflow-y-auto ">
+            {countries.map(code => {
+              const country = gccRegistry[code];
+              if (!country) return null;
+
+              const jobsOrgs = country.organizations.filter(o => o.capabilities.jobs === 'configured');
+              const docsOrgs = country.organizations.filter(o => o.capabilities.documents === 'configured');
+
+              const jobsStatus = jobsOrgs.length > 0 ? 'Live' : 'Not configured';
+              const docsStatus = docsOrgs.length > 0 ? 'Live' : 'Not configured';
+              const tendersStatus = getStatusText(country.tenders);
+
+              return (
+                <div key={code} className="space-y-1.5">
+                  <div className="font-semibold text-slate-200 border-b border-slate-700/50 pb-1 mb-1">{country.country_name}</div>
+
+                  <div className="grid grid-cols-2 gap-x-2 gap-y-1">
+                    <div className="text-slate-400">Companies:</div>
+                    <div className={getStatusColor('Limited')}>Limited</div>
+
+                    <div className="text-slate-400">Infrastructure:</div>
+                    <div className={getStatusColor('Live*')}>Live*</div>
+
+                    <div className="text-slate-400">Tenders:</div>
+                    <div className={getStatusColor(tendersStatus)}>{tendersStatus}</div>
+
+                    <div className="text-slate-400">Jobs:</div>
+                    <div>
+                      <span className={getStatusColor(jobsStatus)}>{jobsStatus}</span>
+                      {jobsStatus === 'Live' && <span className="text-slate-500 block text-[10px] leading-tight mt-0.5">{jobsOrgs.map(o => o.organization_name).join(', ')}</span>}
+                    </div>
+
+                    <div className="text-slate-400">Documents:</div>
+                    <div>
+                      <span className={getStatusColor(docsStatus)}>{docsStatus}</span>
+                      {docsStatus === 'Live' && <span className="text-slate-500 block text-[10px] leading-tight mt-0.5">{docsOrgs.map(o => o.organization_name).join(', ')}</span>}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+
+            <div className="pt-2 border-t border-slate-700/50 text-[11px] text-slate-400 space-y-1">
+              <p>Coverage reflects currently configured public sources and does not imply complete national coverage.</p>
+              <p>* Infrastructure intelligence requires a verified public company domain.</p>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
 
   const renderIntelligenceContent = () => {
     if (intelLoading) {
@@ -1240,11 +1353,18 @@ function App() {
               <label htmlFor="intelCountry" className="block text-sm font-medium text-slate-300 mb-1">Country</label>
               <select
                 id="intelCountry"
-                className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2.5 text-sm text-white focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 outline-none transition-all"
+                className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2.5 text-sm text-white focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 outline-none transition-all disabled:opacity-50"
                 value={intelCountry}
                 onChange={e => setIntelCountry(e.target.value)}
+                disabled={registryLoading || !!registryError}
               >
-                <option value="SA">Saudi Arabia (SA)</option>
+                {registryError && <option value="SA">{registryError}</option>}
+                {registryLoading && !registryError && <option value="SA">Loading configuration...</option>}
+                {!registryLoading && !registryError && gccRegistry && Object.values(gccRegistry).map(c => (
+                  <option key={c.country_code} value={c.country_code}>
+                    {c.country_name} ({c.country_code})
+                  </option>
+                ))}
               </select>
             </div>
             <div>
@@ -1285,11 +1405,24 @@ function App() {
               <label htmlFor="docCountry" className="block text-sm font-medium text-slate-300 mb-1">Country</label>
               <select
                 id="docCountry"
-                className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2.5 text-sm text-white focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 outline-none transition-all"
+                className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2.5 text-sm text-white focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 outline-none transition-all disabled:opacity-50"
                 value={docCountry}
-                onChange={e => setDocCountry(e.target.value)}
+                onChange={e => {
+                  setDocCountry(e.target.value)
+                  setDocOrg('')
+                }}
+                disabled={registryLoading || !!registryError}
               >
-                <option value="SA">Saudi Arabia (SA)</option>
+                {registryError && <option value="SA">{registryError}</option>}
+                {registryLoading && !registryError && <option value="SA">Loading configuration...</option>}
+                {!registryLoading && !registryError && gccRegistry && Object.values(gccRegistry)
+                  .filter(c => c.organizations.some(o => o.capabilities.documents === 'configured'))
+                  .map(c => (
+                    <option key={c.country_code} value={c.country_code}>
+                      {c.country_name} ({c.country_code})
+                    </option>
+                  ))
+                }
               </select>
             </div>
 
@@ -1297,12 +1430,20 @@ function App() {
               <label htmlFor="docOrg" className="block text-sm font-medium text-slate-300 mb-1">Organization</label>
               <select
                 id="docOrg"
-                className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2.5 text-sm text-white focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 outline-none transition-all"
+                className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2.5 text-sm text-white focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 outline-none transition-all disabled:opacity-50"
                 value={docOrg}
                 onChange={e => setDocOrg(e.target.value)}
+                disabled={registryLoading || !!registryError}
               >
                 <option value="">All Configured Organizations</option>
-                <option value="SABIC">SABIC</option>
+                {!registryLoading && !registryError && gccRegistry && gccRegistry[docCountry]?.organizations
+                  .filter(o => o.capabilities.documents === 'configured')
+                  .map(o => (
+                    <option key={o.organization_id} value={o.organization_name}>
+                      {o.organization_name}
+                    </option>
+                  ))
+                }
               </select>
             </div>
 
@@ -1349,11 +1490,24 @@ function App() {
               <label htmlFor="jobCountry" className="block text-sm font-medium text-slate-300 mb-1">Country</label>
               <select
                 id="jobCountry"
-                className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2.5 text-sm text-white focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 outline-none transition-all"
+                className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2.5 text-sm text-white focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 outline-none transition-all disabled:opacity-50"
                 value={jobCountry}
-                onChange={e => setJobCountry(e.target.value)}
+                onChange={e => {
+                  setJobCountry(e.target.value)
+                  setJobCompany('')
+                }}
+                disabled={registryLoading || !!registryError}
               >
-                <option value="SA">Saudi Arabia (SA)</option>
+                {registryError && <option value="SA">{registryError}</option>}
+                {registryLoading && !registryError && <option value="SA">Loading configuration...</option>}
+                {!registryLoading && !registryError && gccRegistry && Object.values(gccRegistry)
+                  .filter(c => c.organizations.some(o => o.capabilities.jobs === 'configured'))
+                  .map(c => (
+                    <option key={c.country_code} value={c.country_code}>
+                      {c.country_name} ({c.country_code})
+                    </option>
+                  ))
+                }
               </select>
             </div>
 
@@ -1361,14 +1515,20 @@ function App() {
               <label htmlFor="jobCompany" className="block text-sm font-medium text-slate-300 mb-1">Employer</label>
               <select
                 id="jobCompany"
-                className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2.5 text-sm text-white focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 outline-none transition-all"
+                className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2.5 text-sm text-white focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 outline-none transition-all disabled:opacity-50"
                 value={jobCompany}
                 onChange={e => setJobCompany(e.target.value)}
+                disabled={registryLoading || !!registryError}
               >
                 <option value="">All Configured Employers</option>
-                <option value="Saudi Aramco">Saudi Aramco</option>
-                <option value="STC">STC</option>
-                <option value="SABIC">SABIC</option>
+                {!registryLoading && !registryError && gccRegistry && gccRegistry[jobCountry]?.organizations
+                  .filter(o => o.capabilities.jobs === 'configured')
+                  .map(o => (
+                    <option key={o.organization_id} value={o.organization_name}>
+                      {o.organization_name}
+                    </option>
+                  ))
+                }
               </select>
             </div>
 
@@ -1454,6 +1614,8 @@ function App() {
             </button>
           </form>
         )}
+
+          {renderCoverage()}
 
         <div className="mt-8 flex items-center space-x-3 bg-slate-900/50 p-3 rounded-lg border border-slate-700/50">
           <div className="text-xs font-medium text-slate-400">API Status</div>

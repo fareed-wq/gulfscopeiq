@@ -53,3 +53,4 @@ class DocumentSearchResponse(BaseModel):
     documents: List[Document] = Field(default_factory=list)
     entities: List[IntelligenceEntity] = Field(default_factory=list)
     relationships: List[IntelligenceRelationship] = Field(default_factory=list)
+    metadata: Dict[str, Any] = Field(default_factory=dict)
