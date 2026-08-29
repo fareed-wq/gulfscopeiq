@@ -1614,6 +1614,8 @@ function App() {
           </form>
         )}
 
+          {renderCoverage()}
+
         <div className="mt-8 flex items-center space-x-3 bg-slate-900/50 p-3 rounded-lg border border-slate-700/50">
           <div className="text-xs font-medium text-slate-400">API Status</div>
           <div className="flex items-center space-x-2">
