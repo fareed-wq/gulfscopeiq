@@ -4,7 +4,8 @@ import IntelligenceGraph from './components/IntelligenceGraph'
 
 function App() {
   const [apiStatus, setApiStatus] = useState('Checking...')
-  const [activeTab, setActiveTab] = useState('company') // 'company' or 'tender'
+  const [activeTab, setActiveTab] = useState('company')
+  const [coverageExpanded, setCoverageExpanded] = useState(false)
 
   // Intelligence State
   const [intelCompanyName, setIntelCompanyName] = useState('')
@@ -250,6 +251,95 @@ function App() {
       setJobLoading(false)
     }
   }
+
+  const renderCoverage = () => {
+    if (!gccRegistry) return null;
+
+    const countries = ['SA', 'AE', 'QA', 'KW', 'BH', 'OM'];
+
+    const getStatusText = (status) => {
+      if (status === 'configured') return 'Live';
+      if (status === 'foundation') return 'Foundation';
+      if (status === 'unavailable') return 'Unavailable';
+      return 'Unknown';
+    };
+
+    const getStatusColor = (text) => {
+      if (text.startsWith('Live')) return 'text-emerald-400';
+      if (text === 'Foundation') return 'text-yellow-400';
+      if (text === 'Unavailable') return 'text-rose-400';
+      return 'text-slate-400';
+    };
+
+    return (
+      <div className="mt-6 border border-slate-700/50 rounded-lg overflow-hidden bg-slate-900/30">
+        <button
+          onClick={() => setCoverageExpanded(!coverageExpanded)}
+          className="w-full p-3 flex items-center justify-between bg-slate-800/50 hover:bg-slate-700/50 transition-colors"
+        >
+          <div className="flex items-center space-x-2">
+            <svg className="w-4 h-4 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+            </svg>
+            <span className="text-xs font-semibold text-slate-300">Supported Coverage</span>
+          </div>
+          <svg className={`w-4 h-4 text-slate-500 transition-transform ${coverageExpanded ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path>
+          </svg>
+        </button>
+
+        {coverageExpanded && (
+          <div className="p-3 text-xs space-y-4 border-t border-slate-700/50 max-h-96 overflow-y-auto ">
+            {countries.map(code => {
+              const country = gccRegistry[code];
+              if (!country) return null;
+
+              const jobsOrgs = country.organizations.filter(o => o.capabilities.jobs === 'configured');
+              const docsOrgs = country.organizations.filter(o => o.capabilities.documents === 'configured');
+
+              const jobsStatus = jobsOrgs.length > 0 ? 'Live' : 'Foundation';
+              const docsStatus = docsOrgs.length > 0 ? 'Live' : 'Foundation';
+              const tendersStatus = getStatusText(country.tenders);
+
+              return (
+                <div key={code} className="space-y-1.5">
+                  <div className="font-semibold text-slate-200 border-b border-slate-700/50 pb-1 mb-1">{country.country_name}</div>
+
+                  <div className="grid grid-cols-2 gap-x-2 gap-y-1">
+                    <div className="text-slate-400">Companies:</div>
+                    <div className={getStatusColor('Live')}>Live</div>
+
+                    <div className="text-slate-400">Infrastructure:</div>
+                    <div className={getStatusColor('Live*')}>Live*</div>
+
+                    <div className="text-slate-400">Tenders:</div>
+                    <div className={getStatusColor(tendersStatus)}>{tendersStatus}</div>
+
+                    <div className="text-slate-400">Jobs:</div>
+                    <div>
+                      <span className={getStatusColor(jobsStatus)}>{jobsStatus}</span>
+                      {jobsStatus === 'Live' && <span className="text-slate-500 block text-[10px] leading-tight mt-0.5">{jobsOrgs.map(o => o.organization_name).join(', ')}</span>}
+                    </div>
+
+                    <div className="text-slate-400">Documents:</div>
+                    <div>
+                      <span className={getStatusColor(docsStatus)}>{docsStatus}</span>
+                      {docsStatus === 'Live' && <span className="text-slate-500 block text-[10px] leading-tight mt-0.5">{docsOrgs.map(o => o.organization_name).join(', ')}</span>}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+
+            <div className="pt-2 border-t border-slate-700/50 text-[10px] text-slate-500 space-y-1">
+              <p>Coverage reflects currently configured public sources and does not imply complete national coverage.</p>
+              <p>* Infrastructure intelligence requires a verified public company domain.</p>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
 
   const renderIntelligenceContent = () => {
     if (intelLoading) {
