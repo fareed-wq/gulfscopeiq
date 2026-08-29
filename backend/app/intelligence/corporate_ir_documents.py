@@ -56,7 +56,7 @@ from urllib.parse import unquote, urlparse
 from pathlib import Path
 import re
 
-async def _process_source(source: SourceConfig, request: DocumentSearchRequest) -> Tuple[str, List[Document], List[IntelligenceEntity], List[IntelligenceRelationship]]:
+async def _process_source(source: SourceConfig, request: DocumentSearchRequest) -> Tuple[str, List[Document], List[IntelligenceEntity], List[IntelligenceRelationship], Dict[str, Any]]:
     documents = []
     entities = []
     relationships = []
@@ -71,40 +71,46 @@ async def _process_source(source: SourceConfig, request: DocumentSearchRequest) 
     redirects = 0
     content = b""
 
-    while redirects <= 2:
-        parsed_current = urlparse(current_url)
-        if parsed_current.scheme != "https" or parsed_current.hostname.lower() not in source.allowed_hosts:
-            return "error", [], [], []
+    try:
+        while redirects <= 2:
+            parsed_current = urlparse(current_url)
+            if parsed_current.scheme != "https" or parsed_current.hostname.lower() not in source.allowed_hosts:
+                return "error", [], [], [], {"failure_type": "request_error"}
 
-        async with client.stream("GET", current_url) as response:
-            if response.status_code in (301, 302, 303, 307, 308):
-                location = response.headers.get("location")
-                if not location:
-                    break
-                current_url = urljoin(current_url, location)
-                redirects += 1
-                continue
+            async with client.stream("GET", current_url) as response:
+                if response.status_code in (301, 302, 303, 307, 308):
+                    location = response.headers.get("location")
+                    if not location:
+                        break
+                    current_url = urljoin(current_url, location)
+                    redirects += 1
+                    continue
 
-            if response.status_code != 200:
-                return "error", [], [], []
+                if response.status_code != 200:
+                    return "error", [], [], [], {"failure_type": "http_error", "upstream_status": response.status_code}
 
-            content_type = response.headers.get("content-type", "").lower()
-            if "text/html" not in content_type:
-                return "error", [], [], []
+                content_type = response.headers.get("content-type", "").lower()
+                if "text/html" not in content_type:
+                    return "error", [], [], [], {"failure_type": "request_error"}
 
-            async for chunk in response.aiter_bytes():
-                content += chunk
-                if len(content) > 5 * 1024 * 1024:
-                    return "error", [], [], []
+                async for chunk in response.aiter_bytes():
+                    content += chunk
+                    if len(content) > 5 * 1024 * 1024:
+                        return "error", [], [], [], {"failure_type": "request_error"}
 
-            break
-    else:
-        return "error", [], [], []
+                break
+        else:
+            return "error", [], [], [], {"failure_type": "request_error"}
+    except httpx.TimeoutException:
+        return "error", [], [], [], {"failure_type": "timeout"}
+    except Exception:
+        return "error", [], [], [], {"failure_type": "request_error"}
+    finally:
+        await client.aclose()
 
-    await client.aclose()
 
     if not content:
-        return "error", [], [], []
+        return "error", [], [], [], {"failure_type": "request_error"}
 
     soup = BeautifulSoup(content, 'html.parser')
     seen_urls = set()
@@ -220,21 +226,23 @@ async def _process_source(source: SourceConfig, request: DocumentSearchRequest) 
         if len(documents) >= 30:
             break
 
-    return "collected", documents, entities, relationships
-async def search_corporate_ir_documents(request: DocumentSearchRequest) -> Tuple[List[Document], List[IntelligenceEntity], List[IntelligenceRelationship], str]:
+    return "collected", documents, entities, relationships, {}
+async def search_corporate_ir_documents(request: DocumentSearchRequest) -> Tuple[List[Document], List[IntelligenceEntity], List[IntelligenceRelationship], str, Dict[str, Any]]:
     req_country = request.country_code.upper()
     req_org = request.organization.lower() if request.organization else None
 
     tasks = []
+    task_sources = []
     for src in CORPORATE_SOURCES:
         if src.country_code != req_country:
             continue
         if req_org and req_org != src.organization.lower() and req_org not in src.aliases:
             continue
         tasks.append(_process_source(src, request))
+        task_sources.append(src)
 
     if not tasks:
-        return [], [], [], "foundation"
+        return [], [], [], "foundation", {}
 
     results = await asyncio.gather(*tasks, return_exceptions=True)
 
@@ -244,12 +252,20 @@ async def search_corporate_ir_documents(request: DocumentSearchRequest) -> Tuple
     seen_ents = set()
     statuses = []
 
-    for res in results:
+    diagnostics = {}
+    for i, res in enumerate(results):
+        src = task_sources[i]
         if isinstance(res, Exception):
             statuses.append("error")
+            failure_type = "request_error"
+            if isinstance(res, httpx.TimeoutException):
+                failure_type = "timeout"
+            diagnostics[src.organization] = {"failure_type": failure_type}
             continue
-        status, docs, ents, rels = res
+        status, docs, ents, rels, diag = res
         statuses.append(status)
+        if diag:
+            diagnostics[src.organization] = diag
         all_docs.extend(docs)
         for e in ents:
             if e.id not in seen_ents:
@@ -270,4 +286,4 @@ async def search_corporate_ir_documents(request: DocumentSearchRequest) -> Tuple
     else:
         final_status = "error"
 
-    return all_docs, pruned_ents, pruned_rels, final_status
+    return all_docs, pruned_ents, pruned_rels, final_status, diagnostics

@@ -81,7 +81,7 @@ def test_documents_search_reaches_collector_ae(mock_search):
     mock_ent = IntelligenceEntity(id='e1', type='mock', label='mock')
     mock_rel = IntelligenceRelationship(source='e1', target='e2', type='mock', confidence='high')
 
-    mock_search.return_value = ([mock_doc], [mock_ent], [mock_rel], 'collected')
+    mock_search.return_value = ([mock_doc], [mock_ent], [mock_rel], 'collected', {})
 
     response = client.post('/api/documents/search', json={
         'query': 'report',

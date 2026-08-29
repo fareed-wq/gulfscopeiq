@@ -6,7 +6,7 @@ router = APIRouter()
 
 @router.post('/search', response_model=DocumentSearchResponse)
 async def search_documents(request: DocumentSearchRequest):
-    docs, ents, rels, search_status = await search_corporate_ir_documents(request)
+    docs, ents, rels, search_status, diagnostics = await search_corporate_ir_documents(request)
 
     if not docs:
         return DocumentSearchResponse(
@@ -17,7 +17,8 @@ async def search_documents(request: DocumentSearchRequest):
             status=search_status,
             documents=[],
             entities=[],
-            relationships=[]
+            relationships=[],
+            metadata=diagnostics
         )
 
     return DocumentSearchResponse(
@@ -28,5 +29,6 @@ async def search_documents(request: DocumentSearchRequest):
         status='collected',
         documents=docs,
         entities=ents,
-        relationships=rels
+        relationships=rels,
+        metadata=diagnostics
     )
