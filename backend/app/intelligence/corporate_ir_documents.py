@@ -52,7 +52,8 @@ CORPORATE_SOURCES = [
     )
 ]
 
-async def _process_source(source: SourceConfig, request: DocumentSearchRequest) -> Tuple[List[Document], List[IntelligenceEntity], List[IntelligenceRelationship]]:
+from urllib.parse import unquote
+async def _process_source(source: SourceConfig, request: DocumentSearchRequest) -> Tuple[str, List[Document], List[IntelligenceEntity], List[IntelligenceRelationship]]:
     documents = []
     entities = []
     relationships = []
@@ -66,11 +67,11 @@ async def _process_source(source: SourceConfig, request: DocumentSearchRequest) 
     current_url = source.index_url
     redirects = 0
     content = b""
-    
+
     while redirects <= 2:
         parsed_current = urlparse(current_url)
         if parsed_current.scheme != "https" or parsed_current.hostname.lower() not in source.allowed_hosts:
-            return [], [], []
+            return "error", [], [], []
 
         async with client.stream("GET", current_url) as response:
             if response.status_code in (301, 302, 303, 307, 308):
@@ -80,31 +81,31 @@ async def _process_source(source: SourceConfig, request: DocumentSearchRequest) 
                 current_url = urljoin(current_url, location)
                 redirects += 1
                 continue
-            
+
             if response.status_code != 200:
-                return [], [], []
+                return "error", [], [], []
 
             content_type = response.headers.get("content-type", "").lower()
             if "text/html" not in content_type:
-                return [], [], []
+                return "error", [], [], []
 
             async for chunk in response.aiter_bytes():
                 content += chunk
                 if len(content) > 5 * 1024 * 1024:
-                    return [], [], []
-            
+                    return "error", [], [], []
+
             break
     else:
-        return [], [], []
+        return "error", [], [], []
 
     await client.aclose()
 
     if not content:
-        return [], [], []
+        return "error", [], [], []
 
     soup = BeautifulSoup(content, 'html.parser')
     seen_urls = set()
-    
+
     q_lower = request.query.lower()
     req_type_lower = request.document_type.lower() if request.document_type else None
 
@@ -131,23 +132,37 @@ async def _process_source(source: SourceConfig, request: DocumentSearchRequest) 
         if not title:
             title = parsed_url.path.split("/")[-1]
 
-        doc_type = None
+        decoded_href = unquote(href).lower()
         title_lower = title.lower()
+
+        # URL normalization for category matching: replace _, -, %20 with space
+        normalized_href = decoded_href.replace("_", " ").replace("-", " ").replace("%20", " ")
+        cat_context = f"{title_lower} {normalized_href}"
+
+        doc_type = None
         for k, v in source.category_mapping.items():
-            if k in title_lower:
+            if k in cat_context:
                 doc_type = v
                 break
 
-        if q_lower not in title_lower and (not doc_type or q_lower not in doc_type.lower()) and q_lower not in source.organization.lower():
+        if not doc_type:
+            continue
+
+        search_context = f"{cat_context} {source.organization.lower()} {doc_type.lower()}"
+        for key, val in source.category_mapping.items():
+            if val == doc_type:
+                search_context += f" {key.lower()}"
+
+        if q_lower not in search_context:
             continue
 
         if req_type_lower:
-            if not doc_type or req_type_lower not in doc_type.lower():
+            if req_type_lower not in doc_type.lower():
                 continue
 
         doc_id_str = _stable_id(full_url)
         doc_id = f"doc_{doc_id_str}"
-        
+
         doc = Document(
             id=doc_id,
             title=title,
@@ -160,14 +175,14 @@ async def _process_source(source: SourceConfig, request: DocumentSearchRequest) 
             evidence=[Evidence(source="corporate_ir", source_url=current_url)],
             attributes={}
         )
-        
+
         doc_entity = IntelligenceEntity(id=doc_id, type="document", label=title, attributes={"document_type": doc_type, "file_url": full_url})
         rel = IntelligenceRelationship(source=doc_id, target=org_id, type="published_by", confidence="high")
 
         documents.append(doc)
         entities.append(doc_entity)
         relationships.append(rel)
-        
+
         if not org_added:
             entities.append(org_entity)
             org_added = True
@@ -175,9 +190,9 @@ async def _process_source(source: SourceConfig, request: DocumentSearchRequest) 
         if len(documents) >= 30:
             break
 
-    return documents, entities, relationships
+    return "collected", documents, entities, relationships
 
-async def search_corporate_ir_documents(request: DocumentSearchRequest) -> Tuple[List[Document], List[IntelligenceEntity], List[IntelligenceRelationship]]:
+async def search_corporate_ir_documents(request: DocumentSearchRequest) -> Tuple[List[Document], List[IntelligenceEntity], List[IntelligenceRelationship], str]:
     req_country = request.country_code.upper()
     req_org = request.organization.lower() if request.organization else None
 
@@ -190,17 +205,22 @@ async def search_corporate_ir_documents(request: DocumentSearchRequest) -> Tuple
         tasks.append(_process_source(src, request))
 
     if not tasks:
-        return [], [], []
+        return [], [], [], "foundation"
 
-    results = await asyncio.gather(*tasks)
-    
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+
     all_docs = []
     all_ents = []
     all_rels = []
     seen_ents = set()
-    
+    statuses = []
+
     for res in results:
-        docs, ents, rels = res
+        if isinstance(res, Exception):
+            statuses.append("error")
+            continue
+        status, docs, ents, rels = res
+        statuses.append(status)
         all_docs.extend(docs)
         for e in ents:
             if e.id not in seen_ents:
@@ -209,9 +229,16 @@ async def search_corporate_ir_documents(request: DocumentSearchRequest) -> Tuple
         all_rels.extend(rels)
 
     all_docs = all_docs[:30]
-    
+
     doc_ids = {d.id for d in all_docs}
     pruned_rels = [r for r in all_rels if r.source in doc_ids]
     pruned_ents = [e for e in all_ents if e.type == "organization" or e.id in doc_ids]
 
-    return all_docs, pruned_ents, pruned_rels
+    if "collected" in statuses and "error" in statuses:
+        final_status = "partial"
+    elif "collected" in statuses:
+        final_status = "collected"
+    else:
+        final_status = "error"
+
+    return all_docs, pruned_ents, pruned_rels, final_status
