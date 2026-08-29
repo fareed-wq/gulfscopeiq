@@ -266,6 +266,7 @@ function App() {
 
     const getStatusColor = (text) => {
       if (text.startsWith('Live')) return 'text-emerald-400';
+      if (text === 'Limited') return 'text-sky-400';
       if (text === 'Not configured') return 'text-amber-400/90';
       if (text === 'Unavailable') return 'text-rose-400';
       return 'text-slate-400';
@@ -307,7 +308,7 @@ function App() {
 
                   <div className="grid grid-cols-2 gap-x-2 gap-y-1">
                     <div className="text-slate-400">Companies:</div>
-                    <div className={getStatusColor('Live')}>Live</div>
+                    <div className={getStatusColor('Limited')}>Limited</div>
 
                     <div className="text-slate-400">Infrastructure:</div>
                     <div className={getStatusColor('Live*')}>Live*</div>
